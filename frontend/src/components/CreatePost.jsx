@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import api from '../utils/api';
+import GooglePlacesAutocomplete from './GooglePlacesAutocomplete';
 
 const CreatePost = ({ onPostCreated }) => {
   const [formData, setFormData] = useState({
@@ -8,6 +9,7 @@ const CreatePost = ({ onPostCreated }) => {
     urgency: 'low',
     location: '',
   });
+  const [locationData, setLocationData] = useState(null);
   const [images, setImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -19,6 +21,15 @@ const CreatePost = ({ onPostCreated }) => {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
+    }));
+  };
+
+  const handleLocationSelect = (addressData) => {
+    setLocationData(addressData);
+    // Update location field with formatted address
+    setFormData((prev) => ({
+      ...prev,
+      location: addressData.street_address || '',
     }));
   };
 
@@ -55,6 +66,19 @@ const CreatePost = ({ onPostCreated }) => {
       postData.append('body', formData.body);
       postData.append('urgency', formData.urgency);
       postData.append('location', formData.location);
+      
+      // Append location coordinates if available
+      if (locationData) {
+        if (locationData.latitude) {
+          postData.append('latitude', locationData.latitude);
+        }
+        if (locationData.longitude) {
+          postData.append('longitude', locationData.longitude);
+        }
+        if (locationData.postal_code) {
+          postData.append('postal_code', locationData.postal_code);
+        }
+      }
 
       // Append images
       images.forEach((image) => {
@@ -76,6 +100,7 @@ const CreatePost = ({ onPostCreated }) => {
         urgency: 'low',
         location: '',
       });
+      setLocationData(null);
       setImages([]);
       setImagePreviews([]);
 
@@ -172,15 +197,20 @@ const CreatePost = ({ onPostCreated }) => {
           <label htmlFor="location" className="block text-sm font-bold text-black mb-2 uppercase tracking-wide">
             Location
           </label>
-          <input
-            type="text"
-            id="location"
-            name="location"
-            value={formData.location}
-            onChange={handleInputChange}
-            className="w-full px-4 py-3 border-2 border-black focus:outline-none focus:border-black"
-            placeholder="e.g., 123 Main St, Building A"
+          <GooglePlacesAutocomplete
+            onPlaceSelect={handleLocationSelect}
+            placeholder="Search for an address..."
           />
+          {locationData && (
+            <div className="mt-2 p-3 bg-gray-50 border-2 border-gray-300 text-sm">
+              <p className="font-semibold">Selected Location:</p>
+              <p>{locationData.street_address}</p>
+              <p>{locationData.city}, {locationData.state} {locationData.postal_code}</p>
+              <p className="text-xs text-gray-600 mt-1">
+                Coordinates: {locationData.latitude?.toFixed(6)}, {locationData.longitude?.toFixed(6)}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Images */}

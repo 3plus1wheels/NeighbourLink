@@ -176,7 +176,8 @@ class PostSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'author', 'neighborhood', 'title', 'body', 'urgency',
             'comment_count', 'created_at', 'updated_at',
-            'images', 'reactions', 'comments', 'like_count', 'dislike_count'
+            'images', 'reactions', 'comments', 'like_count', 'dislike_count',
+            'postal_code', 'latitude', 'longitude'
         ]
 
     def get_like_count(self, obj):
@@ -209,15 +210,21 @@ class PostCreateSerializer(serializers.ModelSerializer):
     )
     location = serializers.CharField(max_length=500, required=False, allow_blank=True)
     neighborhood_id = serializers.IntegerField(required=False, allow_null=True)
+    postal_code = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    latitude = serializers.DecimalField(max_digits=10, decimal_places=7, required=False, allow_null=True)
+    longitude = serializers.DecimalField(max_digits=10, decimal_places=7, required=False, allow_null=True)
     
     class Meta:
         model = Post
-        fields = ['title', 'body', 'urgency', 'location', 'neighborhood_id', 'images']
+        fields = ['title', 'body', 'urgency', 'location', 'neighborhood_id', 'images', 'postal_code', 'latitude', 'longitude']
     
     def create(self, validated_data):
         images_data = validated_data.pop('images', [])
         location = validated_data.pop('location', '')
         neighborhood_id = validated_data.pop('neighborhood_id', None)
+        postal_code = validated_data.pop('postal_code', '')
+        latitude = validated_data.pop('latitude', None)
+        longitude = validated_data.pop('longitude', None)
         
         # Get the author from context (current user)
         author = self.context['request'].user
@@ -234,10 +241,13 @@ class PostCreateSerializer(serializers.ModelSerializer):
         if not neighborhood and hasattr(author, 'profile') and author.profile.neighborhood:
             neighborhood = author.profile.neighborhood
         
-        # Create the post
+        # Create the post with coordinates
         post = Post.objects.create(
             author=author,
             neighborhood=neighborhood,
+            postal_code=postal_code,
+            latitude=latitude,
+            longitude=longitude,
             **validated_data
         )
         
@@ -269,7 +279,8 @@ class PostListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'body', 'urgency', 'author_username', 
             'neighborhood_name', 'comment_count', 'created_at', 
-            'updated_at', 'images', 'like_count', 'dislike_count'
+             'updated_at', 'images', 'like_count', 'dislike_count',
+            'postal_code', 'latitude', 'longitude'
         ]
     
     def get_like_count(self, obj):
