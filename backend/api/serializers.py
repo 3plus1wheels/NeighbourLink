@@ -169,6 +169,7 @@ class PostSerializer(serializers.ModelSerializer):
     comments = CommentSerializer(many=True, read_only=True)
     like_count = serializers.SerializerMethodField()
     dislike_count = serializers.SerializerMethodField()
+    postal_code = serializers.CharField()
 
     class Meta:
         model = Post
