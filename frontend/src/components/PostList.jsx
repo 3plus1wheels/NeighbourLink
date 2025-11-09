@@ -6,19 +6,18 @@ const PostList = ({ refreshTrigger }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
-  const [nearbyOnly, setNearbyOnly] = useState(true);
+  const [currentImageIndex, setCurrentImageIndex] = useState({});
 
   useEffect(() => {
     fetchPosts();
-  }, [refreshTrigger, filter, nearbyOnly]);
+  }, [refreshTrigger, filter]);
 
   const fetchPosts = async () => {
     try {
       setLoading(true);
       let url = '/posts/';
 
-      const params = [];
-      if (nearbyOnly) params.push('nearby=true');
+      const params = ['nearby=true']; // Always fetch nearby posts only
       if (filter !== 'all') params.push(`urgency=${filter}`);
       if (params.length > 0) url += '?' + params.join('&');
 
@@ -35,6 +34,51 @@ const PostList = ({ refreshTrigger }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleVote = async (postId, voteType) => {
+    try {
+      const currentPost = posts.find(p => p.id === postId);
+      const currentVote = currentPost?.user_vote;
+      
+      // If clicking the same vote, remove it
+      const actualVoteType = currentVote === voteType ? 'remove' : voteType;
+      
+      const response = await api.post(`/posts/${postId}/vote/`, {
+        vote_type: actualVoteType
+      });
+      
+      // Update the post in the list with new vote counts
+      setPosts(posts.map(post => {
+        if (post.id === postId) {
+          return {
+            ...post,
+            upvote_count: response.data.upvote_count,
+            downvote_count: response.data.downvote_count,
+            vote_score: response.data.vote_score,
+            user_vote: response.data.user_vote
+          };
+        }
+        return post;
+      }));
+    } catch (err) {
+      console.error('Failed to vote:', err);
+      setError(err.response?.data?.error || 'Failed to vote');
+    }
+  };
+
+  const handleNextImage = (postId, imageCount) => {
+    setCurrentImageIndex(prev => ({
+      ...prev,
+      [postId]: ((prev[postId] || 0) + 1) % imageCount
+    }));
+  };
+
+  const handlePrevImage = (postId, imageCount) => {
+    setCurrentImageIndex(prev => ({
+      ...prev,
+      [postId]: ((prev[postId] || 0) - 1 + imageCount) % imageCount
+    }));
   };
 
   const formatDate = (dateString) => {
@@ -73,23 +117,11 @@ const PostList = ({ refreshTrigger }) => {
 
   return (
     <section className="card">
-      <div className="mb-4 flex items-center gap-3">
-        <button
-          onClick={() => setNearbyOnly(!nearbyOnly)}
-          className={`btn ${nearbyOnly ? 'btn-primary' : 'btn-secondary'}`}
-        >
-          {nearbyOnly ? '📍 Nearby (3km)' : '🌍 All posts'}
-        </button>
-
-        <span className="small">
-          {nearbyOnly
-            ? 'Showing posts within 3km of your location'
-            : 'Showing all posts'}
-        </span>
-      </div>
-
       <div className="section-head flex items-center justify-between">
-        <h2>Community Posts</h2>
+        <div>
+          <h2>Community Posts</h2>
+          <p className="text-sm text-gray-600 mt-1">📍 Showing posts within 3km of your location</p>
+        </div>
 
         <div className="tabs">
           <button
@@ -105,7 +137,7 @@ const PostList = ({ refreshTrigger }) => {
             aria-selected={filter === 'high'}
             onClick={() => setFilter('high')}
           >
-            Urgent
+            High
           </button>
 
           <button
@@ -144,6 +176,7 @@ const PostList = ({ refreshTrigger }) => {
                   <div className="post-meta">
                     <span className="font-semibold">
                       By {post.author_username}
+                      <span className="text-xs text-indigo-600 ml-1.5 font-semibold">{post.author_karma || 0} Rep</span>
                     </span>
                     <span>•</span>
                     <span>{formatDate(post.created_at)}</span>
@@ -172,29 +205,104 @@ const PostList = ({ refreshTrigger }) => {
               )}
 
               {post.images && post.images.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                  {post.images.map((image, i) => (
+                <div className="relative mb-3">
+                  {/* Carousel Container */}
+                  <div className="relative w-full h-80 bg-gray-100 rounded-lg overflow-hidden">
                     <img
-                      key={i}
-                      src={`http://localhost:8000${image.image}`}
-                      alt={image.caption || `Image ${i + 1}`}
-                      className="thumb w-full h-32 object-cover"
+                      src={`http://localhost:8000${post.images[currentImageIndex[post.id] || 0].image}`}
+                      alt={post.images[currentImageIndex[post.id] || 0].caption || `Image ${(currentImageIndex[post.id] || 0) + 1}`}
+                      className="w-full h-full object-contain"
                     />
-                  ))}
+                    
+                    {/* Navigation Arrows - Only show if more than 1 image */}
+                    {post.images.length > 1 && (
+                      <>
+                        <button
+                          onClick={() => handlePrevImage(post.id, post.images.length)}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-all"
+                          aria-label="Previous image"
+                        >
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleNextImage(post.id, post.images.length)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-all"
+                          aria-label="Next image"
+                        >
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </>
+                    )}
+                    
+                    {/* Image Counter */}
+                    <div className="absolute bottom-2 right-2 bg-black/60 text-white px-3 py-1 rounded-full text-sm font-medium">
+                      {(currentImageIndex[post.id] || 0) + 1} / {Math.min(post.images.length, 5)}
+                    </div>
+                  </div>
+                  
+                  {/* Thumbnail Navigation - Only show if more than 1 image */}
+                  {post.images.length > 1 && (
+                    <div className="flex gap-2 mt-2 overflow-x-auto pb-2">
+                      {post.images.slice(0, 5).map((image, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setCurrentImageIndex(prev => ({ ...prev, [post.id]: i }))}
+                          className={`flex-shrink-0 w-20 h-20 rounded-md overflow-hidden border-2 transition-all ${
+                            (currentImageIndex[post.id] || 0) === i
+                              ? 'border-indigo-600 shadow-md'
+                              : 'border-gray-300 opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          <img
+                            src={`http://localhost:8000${image.image}`}
+                            alt={`Thumbnail ${i + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
-              <div className="post-ftr">
-                <span className="font-semibold">{post.like_count || 0} likes</span>
-                <span className="font-semibold">
-                  {post.comment_count || 0} comments
-                </span>
-
-                {post.dislike_count > 0 && (
-                  <span className="font-semibold">
-                    {post.dislike_count} dislikes
+                            <div className="post-ftr flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => handleVote(post.id, 'upvote')}
+                    className={`flex items-center gap-1 ${
+                      post.user_vote === 'upvote'
+                        ? 'text-green-600 font-bold'
+                        : 'text-gray-600 hover:text-green-600'
+                    }`}
+                  >
+                    <span className="text-xl">▲</span>
+                    <span className="font-semibold">{post.upvote_count || 0}</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => handleVote(post.id, 'downvote')}
+                    className={`flex items-center gap-1 ${
+                      post.user_vote === 'downvote'
+                        ? 'text-red-600 font-bold'
+                        : 'text-gray-600 hover:text-red-600'
+                    }`}
+                  >
+                    <span className="text-xl">▼</span>
+                    <span className="font-semibold">{post.downvote_count || 0}</span>
+                  </button>
+                  
+                  <span className="text-gray-600">
+                    <span className="font-bold">{post.vote_score || 0}</span> score
                   </span>
-                )}
+                </div>
+
+                <span className="font-semibold text-gray-600">
+                  💬 {post.comment_count || 0} comments
+                </span>
               </div>
             </article>
           ))}

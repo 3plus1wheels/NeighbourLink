@@ -24,7 +24,7 @@ from .serializers import (
     NotificationPreferenceUpdateSerializer, PostUpdateSerializer,
     NotificationSerializer
 )
-from .models import Post, Profile, NotificationPreference, Notification
+from .models import Post, Profile, NotificationPreference, Notification, PostReaction
 import logging
 import traceback
 from math import radians, sin, cos, sqrt, atan2
@@ -565,7 +565,7 @@ def list_posts(request):
             posts = [post for post in posts if post.neighborhood_id == int(neighborhood_id)]
             logger.info(f"🏘️  Filtered by neighborhood: {neighborhood_id}")
         
-        serializer = PostListSerializer(posts, many=True)
+        serializer = PostListSerializer(posts, many=True, context={'request': request})
         
         response_data = {
             'user_latitude': str(user_latitude),
@@ -593,7 +593,7 @@ def list_posts(request):
         posts = posts.filter(neighborhood_id=neighborhood_id)
     
     # Serialize and return filtered posts
-    serializer = PostListSerializer(posts, many=True)
+    serializer = PostListSerializer(posts, many=True, context={'request': request})
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -789,7 +789,7 @@ def get_user_posts(request):
     # Filter posts by current authenticated user
     posts = Post.objects.filter(author=request.user)
     # Serialize with basic post information
-    serializer = PostListSerializer(posts, many=True)
+    serializer = PostListSerializer(posts, many=True, context={'request': request})
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -797,34 +797,37 @@ def get_user_posts(request):
 @permission_classes([IsAuthenticated])
 def update_post(request, post_id):
     """
-    Update a post (author only).
+    Update a post (author only) including image management.
     
-    This endpoint allows users to edit their own posts. Only the post author
-    has permission to update. Supports both PUT (full update) and PATCH
-    (partial update) methods.
+    This endpoint allows users to edit their own posts including adding/removing images.
+    Only the post author has permission to update. Supports both PUT (full update) and 
+    PATCH (partial update) methods.
     
     Args:
         request: HTTP request containing updated post data:
-            - content (str, optional): Updated post text
+            - title (str, optional): Updated post title
+            - body (str, optional): Updated post text
             - urgency (str, optional): Updated urgency level
-            - latitude (decimal, optional): Updated latitude
-            - longitude (decimal, optional): Updated longitude
-            - address (str, optional): Updated address
+            - new_images (list, optional): New images to add (max 5 total)
+            - remove_image_ids (list, optional): IDs of images to remove
         post_id (int): ID of the post to update (from URL path)
     
     Returns:
-        Response: JSON containing complete updated post data
+        Response: JSON containing complete updated post data with images
         
     Status Codes:
         - 200: Post successfully updated
-        - 400: Invalid data (validation errors)
+        - 400: Invalid data (validation errors, too many images)
         - 401: Unauthorized (not authenticated)
         - 403: Forbidden (user is not the post author)
         - 404: Post not found
     
-    Note:
-        Images cannot be updated through this endpoint. Users should delete
-        and create a new post if different images are needed.
+    Example:
+        To remove images [1, 2] and add 2 new images:
+        FormData with:
+            - remove_image_ids: [1, 2]
+            - new_images: [file1, file2]
+            - title: "Updated title"
     """
     try:
         # Fetch the post
@@ -837,14 +840,109 @@ def update_post(request, post_id):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Validate and update post data
+        # Validate and update post data (including images)
         serializer = PostUpdateSerializer(post, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
             serializer.save()
-            # Return complete updated post
-            response_serializer = PostSerializer(post)
+            # Return complete updated post with refreshed images
+            post.refresh_from_db()
+            response_serializer = PostSerializer(post, context={'request': request})
             return Response(response_serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Post.DoesNotExist:
+        return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def vote_post(request, post_id):
+    """
+    Upvote or downvote a post.
+    
+    This endpoint allows users to vote on posts. Users can upvote, downvote,
+    or remove their vote. Only one vote per user per post is allowed.
+    
+    Args:
+        request: HTTP request containing vote data:
+            - vote_type (str): 'upvote', 'downvote', or 'remove'
+        post_id (int): ID of the post to vote on
+    
+    Returns:
+        Response: JSON containing:
+            - message: Success message
+            - upvote_count: Current upvote count
+            - downvote_count: Current downvote count
+            - vote_score: Net score (upvotes - downvotes)
+            - user_vote: Current user's vote ('upvote', 'downvote', or null)
+        
+    Status Codes:
+        - 200: Vote successfully recorded/updated/removed
+        - 400: Invalid vote type or missing data
+        - 401: Unauthorized (not authenticated)
+        - 404: Post not found
+    """
+    try:
+        post = Post.objects.get(id=post_id)
+        vote_type = request.data.get('vote_type')
+        
+        if vote_type not in ['upvote', 'downvote', 'remove']:
+            return Response(
+                {'error': 'Invalid vote type. Must be "upvote", "downvote", or "remove"'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get existing reaction if any
+        try:
+            reaction = PostReaction.objects.get(post=post, user=request.user)
+            previous_vote = reaction.reaction
+            created = False
+        except PostReaction.DoesNotExist:
+            reaction = None
+            previous_vote = None
+            created = True
+        
+        # Award/remove karma based on vote changes
+        post_author_profile = post.author.profile
+        
+        if vote_type == 'remove':
+            if reaction:
+                # Remove karma if removing an upvote
+                if previous_vote == 'upvote':
+                    post_author_profile.karma_points = max(0, post_author_profile.karma_points - 1)
+                    post_author_profile.save()
+                reaction.delete()
+            message = 'Vote removed'
+            user_vote = None
+        else:
+            # Handle vote change
+            if not reaction:
+                reaction = PostReaction(post=post, user=request.user)
+            
+            # Update karma based on transition
+            if previous_vote == 'upvote' and vote_type == 'downvote':
+                # Changing from upvote to downvote: -1 karma
+                post_author_profile.karma_points = max(0, post_author_profile.karma_points - 1)
+            elif previous_vote == 'downvote' and vote_type == 'upvote':
+                # Changing from downvote to upvote: +1 karma
+                post_author_profile.karma_points += 1
+            elif previous_vote is None and vote_type == 'upvote':
+                # New upvote: +1 karma
+                post_author_profile.karma_points += 1
+            
+            post_author_profile.save()
+            reaction.reaction = vote_type
+            reaction.save()
+            message = f'{vote_type.capitalize()}d successfully'
+            user_vote = vote_type
+        
+        return Response({
+            'message': message,
+            'upvote_count': post.upvote_count(),
+            'downvote_count': post.downvote_count(),
+            'vote_score': post.vote_score(),
+            'user_vote': user_vote
+        }, status=status.HTTP_200_OK)
+        
     except Post.DoesNotExist:
         return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
 

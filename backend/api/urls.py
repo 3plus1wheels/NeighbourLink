@@ -2,7 +2,7 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     register, login, logout, current_user,
-    create_post, list_posts, get_post, delete_post, update_post,
+    create_post, list_posts, get_post, delete_post, update_post, vote_post,
     get_profile, update_profile, get_user_posts,
     get_notification_preferences, update_notification_preferences,
     get_notifications, get_unread_notifications, mark_notification_read,
@@ -24,6 +24,7 @@ urlpatterns = [
     path('posts/<int:post_id>/', get_post, name='get_post'),
     path('posts/<int:post_id>/update/', update_post, name='update_post'),
     path('posts/<int:post_id>/delete/', delete_post, name='delete_post'),
+    path('posts/<int:post_id>/vote/', vote_post, name='vote_post'),
     
     # Profile endpoints
     path('profile/', get_profile, name='get_profile'),

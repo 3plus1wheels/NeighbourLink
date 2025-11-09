@@ -112,11 +112,15 @@ class Post(models.Model):
         self.save(update_fields=['comment_count'])
         return c
     
-    def like_count(self):
-        return self.reactions.filter(reaction=PostReaction.LIKE).count()
+    def upvote_count(self):
+        return self.reactions.filter(reaction=PostReaction.UPVOTE).count()
 
-    def dislike_count(self):
-        return self.reactions.filter(reaction=PostReaction.DISLIKE).count()
+    def downvote_count(self):
+        return self.reactions.filter(reaction=PostReaction.DOWNVOTE).count()
+    
+    def vote_score(self):
+        """Net score: upvotes minus downvotes"""
+        return self.upvote_count() - self.downvote_count()
 
 class PostImage(models.Model):
     """
@@ -136,22 +140,22 @@ class PostImage(models.Model):
         return f"Image for {self.post.id} ({self.image.name})"
 
 class PostReaction(models.Model):
-    LIKE = "like"
-    DISLIKE = "dislike"
+    UPVOTE = "upvote"
+    DOWNVOTE = "downvote"
     REACTION_CHOICES = [
-        (LIKE, "Like"),
-        (DISLIKE, "Dislike"),
+        (UPVOTE, "Upvote"),
+        (DOWNVOTE, "Downvote"),
     ]
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="reactions")
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="post_reactions")
-    reaction = models.CharField(max_length=7, choices=REACTION_CHOICES)
+    reaction = models.CharField(max_length=8, choices=REACTION_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ('post', 'user')
 
     def __str__(self):
-        return f"{self.user.username} {self.reaction}d Post({self.post.id})"
+        return f"{self.user.username} {self.reaction} Post({self.post.id})"
 
 class Comment(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="comments")

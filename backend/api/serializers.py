@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.password_validation import validate_password
+from django.db import models as django_models
 from .models import (
     Neighborhood, Profile, Post, PostImage, PostReaction,
     Comment, NotificationPreference, Notification
@@ -155,9 +156,17 @@ class ProfileSerializer(serializers.ModelSerializer):
                   'latitude', 'longitude', 'created_at']
 
 class PostImageSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+    
     class Meta:
         model = PostImage
-        fields = '__all__'
+        fields = ['id', 'post', 'image', 'caption', 'order', 'uploaded_at']
+    
+    def get_image(self, obj):
+        """Return the image URL path"""
+        if obj.image:
+            return obj.image.url
+        return None
 
 class PostReactionSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField()
@@ -173,28 +182,33 @@ class CommentSerializer(serializers.ModelSerializer):
 
 class PostSerializer(serializers.ModelSerializer):
     author = serializers.StringRelatedField()
+    author_karma = serializers.IntegerField(source='author.profile.karma_points', read_only=True)
     neighborhood = NeighborhoodSerializer(read_only=True)
     images = PostImageSerializer(many=True, read_only=True)
     reactions = PostReactionSerializer(many=True, read_only=True)
     comments = CommentSerializer(many=True, read_only=True)
-    like_count = serializers.SerializerMethodField()
-    dislike_count = serializers.SerializerMethodField()
+    upvote_count = serializers.SerializerMethodField()
+    downvote_count = serializers.SerializerMethodField()
+    vote_score = serializers.SerializerMethodField()
     postal_code = serializers.CharField()
 
     class Meta:
         model = Post
         fields = [
-            'id', 'author', 'neighborhood', 'title', 'body', 'urgency',
+            'id', 'author', 'author_karma', 'neighborhood', 'title', 'body', 'urgency',
             'comment_count', 'created_at', 'updated_at',
-            'images', 'reactions', 'comments', 'like_count', 'dislike_count',
+            'images', 'reactions', 'comments', 'upvote_count', 'downvote_count', 'vote_score',
             'postal_code', 'latitude', 'longitude'
         ]
 
-    def get_like_count(self, obj):
-        return obj.like_count()
+    def get_upvote_count(self, obj):
+        return obj.upvote_count()
 
-    def get_dislike_count(self, obj):
-        return obj.dislike_count()
+    def get_downvote_count(self, obj):
+        return obj.downvote_count()
+    
+    def get_vote_score(self, obj):
+        return obj.vote_score()
 
 class NotificationPreferenceSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField()
@@ -292,25 +306,39 @@ class PostCreateSerializer(serializers.ModelSerializer):
 class PostListSerializer(serializers.ModelSerializer):
     """Serializer for listing posts with minimal data"""
     author_username = serializers.CharField(source='author.username', read_only=True)
+    author_karma = serializers.IntegerField(source='author.profile.karma_points', read_only=True)
     neighborhood_name = serializers.CharField(source='neighborhood.name', read_only=True, allow_null=True)
     images = PostImageSerializer(many=True, read_only=True)
-    like_count = serializers.SerializerMethodField()
-    dislike_count = serializers.SerializerMethodField()
+    upvote_count = serializers.SerializerMethodField()
+    downvote_count = serializers.SerializerMethodField()
+    vote_score = serializers.SerializerMethodField()
+    user_vote = serializers.SerializerMethodField()
     
     class Meta:
         model = Post
         fields = [
-            'id', 'title', 'body', 'urgency', 'author_username', 
+            'id', 'title', 'body', 'urgency', 'author_username', 'author_karma',
             'neighborhood_name', 'comment_count', 'created_at', 
-             'updated_at', 'images', 'like_count', 'dislike_count',
+             'updated_at', 'images', 'upvote_count', 'downvote_count', 'vote_score', 'user_vote',
             'postal_code', 'latitude', 'longitude'
         ]
     
-    def get_like_count(self, obj):
-        return obj.like_count()
+    def get_upvote_count(self, obj):
+        return obj.upvote_count()
     
-    def get_dislike_count(self, obj):
-        return obj.dislike_count()
+    def get_downvote_count(self, obj):
+        return obj.downvote_count()
+    
+    def get_vote_score(self, obj):
+        return obj.vote_score()
+    
+    def get_user_vote(self, obj):
+        """Get the current user's vote on this post"""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            reaction = obj.reactions.filter(user=request.user).first()
+            return reaction.reaction if reaction else None
+        return None
 
 # Profile Management Serializers
 class ProfileDetailSerializer(serializers.ModelSerializer):
@@ -384,14 +412,63 @@ class NotificationPreferenceUpdateSerializer(serializers.ModelSerializer):
         return value
 
 class PostUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating posts"""
+    """Serializer for updating posts with image management"""
+    new_images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+    remove_image_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+    
     class Meta:
         model = Post
-        fields = ['title', 'body', 'urgency']
+        fields = ['title', 'body', 'urgency', 'new_images', 'remove_image_ids']
     
     def validate(self, attrs):
         # Ensure only the author can update
         request = self.context.get('request')
         if request and self.instance.author != request.user:
             raise serializers.ValidationError("You can only edit your own posts")
+        
+        # Validate total image count after changes
+        new_images = attrs.get('new_images', [])
+        remove_image_ids = attrs.get('remove_image_ids', [])
+        
+        current_image_count = self.instance.images.count()
+        final_count = current_image_count - len(remove_image_ids) + len(new_images)
+        
+        if final_count > 5:
+            raise serializers.ValidationError({
+                'new_images': f'Cannot add {len(new_images)} images. Post would have {final_count} images (max: 5).'
+            })
+        
         return attrs
+    
+    def update(self, instance, validated_data):
+        # Handle image removal
+        remove_image_ids = validated_data.pop('remove_image_ids', [])
+        if remove_image_ids:
+            images_to_remove = instance.images.filter(id__in=remove_image_ids)
+            for img in images_to_remove:
+                img.image.delete(save=False)  # Delete the actual file
+                img.delete()  # Delete the database record
+        
+        # Handle new images
+        new_images = validated_data.pop('new_images', [])
+        if new_images:
+            current_max_order = instance.images.aggregate(django_models.Max('order'))['order__max'] or 0
+            for index, image_data in enumerate(new_images):
+                PostImage.objects.create(
+                    post=instance,
+                    image=image_data,
+                    order=current_max_order + index + 1
+                )
+        
+        # Update other fields
+        return super().update(instance, validated_data)
