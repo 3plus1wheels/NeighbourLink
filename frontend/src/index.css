@@ -110,12 +110,17 @@
     border: 1px solid var(--border);
     color: var(--text);
     @apply px-3 py-2 rounded-lg text-sm font-semibold;
+    transition: background-color .15s ease, color .15s ease, border-color .15s ease;
   }
 
   .tab[aria-selected="true"] {
     background: var(--primary);
     color: white;
     border-color: transparent;
+  }
+
+  .tab[aria-selected="false"]:hover {
+    background: #F3F3F3;
   }
 
   /* Posts */
@@ -127,4 +132,52 @@
   .post-ftr  { @apply flex gap-6 text-[14px] text-gray-500 pt-4 border-t; border-color: var(--border); }
 
   .section-head { @apply mb-4 pb-3 border-b; border-color: var(--border); }
+
+  /* -------- Segmented control (Feed / Map) -------- */
+  .segmented {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;   /* two equal segments */
+    gap: 4px;
+    background: var(--primary);       /* black track */
+    border-radius: 12px;
+    padding: 4px;
+  }
+
+  .seg-indicator {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    height: calc(100% - 8px);
+    width: calc(50% - 4px);           /* half the control, minus inner gap */
+    background: var(--surface);       /* white pill */
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    transition: transform .22s ease;
+    will-change: transform;
+  }
+
+  .seg-btn {
+    position: relative;
+    z-index: 1;                       /* Above the indicator */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    padding: .55rem .9rem;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    transition: color .15s ease;
+    user-select: none;
+  }
+
+  .seg-btn[aria-selected="true"] {
+    color: var(--text);               /* black text when active (on white) */
+  }
+
+  .seg-btn[aria-selected="false"] {
+    color: #ffffff;                   /* white text when inactive (on black) */
+  }
 }
