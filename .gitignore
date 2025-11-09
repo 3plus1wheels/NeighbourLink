@@ -9,3 +9,5 @@ db.sqlite3
 *.sqlite3
 
 media/
+backend/venv/Lib/site-packages/PIL/_imaging.cp312-win_amd64.pyd
+backend/venv/Scripts/python.exe
