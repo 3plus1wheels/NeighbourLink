@@ -6,7 +6,7 @@ const PostList = ({ refreshTrigger }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
-  const [nearbyOnly, setNearbyOnly] = useState(true); // Default to nearby posts
+  const [nearbyOnly, setNearbyOnly] = useState(true);
 
   useEffect(() => {
     fetchPosts();
@@ -15,30 +15,18 @@ const PostList = ({ refreshTrigger }) => {
   const fetchPosts = async () => {
     try {
       setLoading(true);
-      
-      // Build URL with filters
       let url = '/posts/';
+
       const params = [];
-      
-      // Add nearby filter if enabled
-      if (nearbyOnly) {
-        params.push('nearby=true');
-      }
-      
-      // Add urgency filter if not 'all'
-      if (filter !== 'all') {
-        params.push(`urgency=${filter}`);
-      }
-      
-      // Combine params
-      if (params.length > 0) {
-        url += '?' + params.join('&');
-      }
-      
+      if (nearbyOnly) params.push('nearby=true');
+      if (filter !== 'all') params.push(`urgency=${filter}`);
+      if (params.length > 0) url += '?' + params.join('&');
+
       const response = await api.get(url);
-      
-      // Handle both formats: direct array or object with posts array
-      const postsData = Array.isArray(response.data) ? response.data : response.data.posts || [];
+      const postsData = Array.isArray(response.data)
+        ? response.data
+        : response.data.posts || [];
+
       setPosts(postsData);
       setError('');
     } catch (err) {
@@ -49,20 +37,15 @@ const PostList = ({ refreshTrigger }) => {
     }
   };
 
-  const urgencyBadges = {
-    low: { bg: 'bg-green-100', text: 'text-green-800', label: '🟢 Low' },
-    med: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: '🟡 Medium' },
-    high: { bg: 'bg-red-100', text: 'text-red-800', label: '🔴 High' },
-  };
-
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
+
     const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
 
     if (diffInHours < 1) {
-      const diffInMinutes = Math.floor((now - date) / (1000 * 60));
-      return `${diffInMinutes} minute${diffInMinutes !== 1 ? 's' : ''} ago`;
+      const m = Math.floor((now - date) / (1000 * 60));
+      return `${m} minute${m !== 1 ? 's' : ''} ago`;
     } else if (diffInHours < 24) {
       return `${diffInHours} hour${diffInHours !== 1 ? 's' : ''} ago`;
     } else {
@@ -74,83 +57,69 @@ const PostList = ({ refreshTrigger }) => {
     }
   };
 
-  if (loading) {
+  if (loading)
     return (
-      <div className="bg-white border-2 border-black p-6">
-        <p className="text-center text-gray-800">Loading posts...</p>
+      <div className="card">
+        <p className="text-center text-gray-700">Loading posts...</p>
       </div>
     );
-  }
 
-  if (error) {
+  if (error)
     return (
-      <div className="bg-white border-2 border-black p-6">
-        <p className="text-center text-black">{error}</p>
+      <div className="card">
+        <p className="text-center text-red-700">{error}</p>
       </div>
     );
-  }
 
   return (
-    <div className="bg-white border-2 border-black p-6">
-      {/* Nearby Toggle */}
-      <div className="mb-4 flex items-center space-x-3">
+    <section className="card">
+      <div className="mb-4 flex items-center gap-3">
         <button
           onClick={() => setNearbyOnly(!nearbyOnly)}
-          className={`px-4 py-2 border-2 border-black font-bold uppercase tracking-wide transition-colors ${
-            nearbyOnly
-              ? 'bg-black text-white'
-              : 'bg-white text-black hover:bg-gray-100'
-          }`}
+          className={`btn ${nearbyOnly ? 'btn-primary' : 'btn-secondary'}`}
         >
-          {nearbyOnly ? '📍 Nearby (3km)' : '🌍 All Posts'}
+          {nearbyOnly ? '📍 Nearby (3km)' : '🌍 All posts'}
         </button>
-        <span className="text-sm text-gray-600">
-          {nearbyOnly ? 'Showing posts within 3km of your location' : 'Showing all posts'}
+
+        <span className="small">
+          {nearbyOnly
+            ? 'Showing posts within 3km of your location'
+            : 'Showing all posts'}
         </span>
       </div>
 
-      <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-black">
-        <h2 className="text-2xl font-bold text-black uppercase tracking-wide">Community Posts</h2>
-        
-        {/* Filter */}
-        <div className="flex space-x-0 border-2 border-black">
+      <div className="section-head flex items-center justify-between">
+        <h2>Community Posts</h2>
+
+        <div className="tabs">
           <button
+            className="tab"
+            aria-selected={filter === 'all'}
             onClick={() => setFilter('all')}
-            className={`px-4 py-2 text-sm font-bold uppercase tracking-wide border-r-2 border-black ${
-              filter === 'all'
-                ? 'bg-black text-white'
-                : 'bg-white text-black hover:bg-gray-100'
-            }`}
           >
             All
           </button>
+
           <button
+            className="tab"
+            aria-selected={filter === 'high'}
             onClick={() => setFilter('high')}
-            className={`px-4 py-2 text-sm font-bold uppercase tracking-wide border-r-2 border-black ${
-              filter === 'high'
-                ? 'bg-black text-white'
-                : 'bg-white text-black hover:bg-gray-100'
-            }`}
           >
             Urgent
           </button>
+
           <button
+            className="tab"
+            aria-selected={filter === 'med'}
             onClick={() => setFilter('med')}
-            className={`px-4 py-2 text-sm font-bold uppercase tracking-wide border-r-2 border-black ${
-              filter === 'med'
-                ? 'bg-black text-white'
-                : 'bg-white text-black hover:bg-gray-100'
-            }`}
           >
             Medium
           </button>
+
           <button
+            className="tab"
+            aria-selected={filter === 'low'}
             onClick={() => setFilter('low')}
-            className={`px-4 py-2 text-sm font-bold uppercase tracking-wide ${
-              filter === 'low'
-                ? 'bg-black text-white'
-                : 'bg-white text-black hover:bg-gray-100'
-            }`}
           >
             Low
           </button>
@@ -158,73 +127,80 @@ const PostList = ({ refreshTrigger }) => {
       </div>
 
       {posts.length === 0 ? (
-        <p className="text-center text-gray-700 py-12 border-2 border-dashed border-gray-300">
+        <p
+          className="text-center text-gray-600 py-12 border border-dashed rounded-lg"
+          style={{ borderColor: '#D4D4D8' }}
+        >
           No posts yet. Be the first to create one!
         </p>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4">
           {posts.map((post) => (
-            <div
-              key={post.id}
-              className="border-2 border-black p-5 hover:bg-gray-50 transition-colors"
-            >
-              {/* Post Header */}
-              <div className="flex justify-between items-start mb-4">
+            <article key={post.id} className="card card-hover">
+              <div className="post-hdr mb-2">
                 <div className="flex-1">
-                  <h3 className="text-xl font-bold text-black uppercase mb-1">
-                    {post.title}
-                  </h3>
-                  <div className="flex items-center space-x-3 text-sm text-gray-700">
-                    <span className="font-bold">By {post.author_username}</span>
+                  <h3 className="post-title mb-1">{post.title}</h3>
+
+                  <div className="post-meta">
+                    <span className="font-semibold">
+                      By {post.author_username}
+                    </span>
                     <span>•</span>
                     <span>{formatDate(post.created_at)}</span>
-                    {post.neighborhood_name && (
-                      <>
-                        <span>•</span>
-                        <span>{post.neighborhood_name}</span>
-                      </>
-                    )}
                   </div>
                 </div>
-                <span className="px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-wide whitespace-nowrap ml-4">
-                  {post.urgency === 'low' && 'Low'}
-                  {post.urgency === 'med' && 'Medium'}
-                  {post.urgency === 'high' && 'High'}
+
+                <span
+                  className={
+                    post.urgency === 'high'
+                      ? 'badge badge-high'
+                      : post.urgency === 'med'
+                      ? 'badge badge-med'
+                      : 'badge badge-low'
+                  }
+                >
+                  {post.urgency === 'high' && 'HIGH'}
+                  {post.urgency === 'med' && 'MEDIUM'}
+                  {post.urgency === 'low' && 'LOW'}
                 </span>
               </div>
 
-              {/* Post Body */}
               {post.body && (
-                <p className="text-gray-800 mb-4 leading-relaxed whitespace-pre-wrap">{post.body}</p>
+                <p className="text-[15.5px] text-gray-800 mb-3 whitespace-pre-wrap">
+                  {post.body}
+                </p>
               )}
 
-              {/* Post Images */}
               {post.images && post.images.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                  {post.images.map((image, index) => (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                  {post.images.map((image, i) => (
                     <img
-                      key={index}
+                      key={i}
                       src={`http://localhost:8000${image.image}`}
-                      alt={image.caption || `Image ${index + 1}`}
-                      className="w-full h-32 object-cover border-2 border-black"
+                      alt={image.caption || `Image ${i + 1}`}
+                      className="thumb w-full h-32 object-cover"
                     />
                   ))}
                 </div>
               )}
 
-              {/* Post Footer */}
-              <div className="flex items-center space-x-6 text-sm text-gray-700 pt-4 border-t-2 border-gray-200">
-                <span className="font-bold">{post.like_count || 0} likes</span>
-                <span className="font-bold">{post.comment_count || 0} comments</span>
+              <div className="post-ftr">
+                <span className="font-semibold">{post.like_count || 0} likes</span>
+                <span className="font-semibold">
+                  {post.comment_count || 0} comments
+                </span>
+
                 {post.dislike_count > 0 && (
-                  <span className="font-bold">{post.dislike_count} dislikes</span>
+                  <span className="font-semibold">
+                    {post.dislike_count} dislikes
+                  </span>
                 )}
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 };
 
