@@ -6,7 +6,8 @@ from .views import (
     get_profile, update_profile, get_user_posts,
     get_notification_preferences, update_notification_preferences,
     get_notifications, get_unread_notifications, mark_notification_read,
-    mark_all_notifications_read, delete_notification
+    mark_all_notifications_read, delete_notification,
+    verify_user_address, verify_address_public
 )
 
 urlpatterns = [
@@ -39,4 +40,8 @@ urlpatterns = [
     path('notifications/<int:notification_id>/read/', mark_notification_read, name='mark_notification_read'),
     path('notifications/mark-all-read/', mark_all_notifications_read, name='mark_all_notifications_read'),
     path('notifications/<int:notification_id>/delete/', delete_notification, name='delete_notification'),
+    
+    # Address Verification
+    path('verify-address/', verify_user_address, name='verify-address'),
+    path('verify-address-public/', verify_address_public, name='verify-address-public'),
 ]

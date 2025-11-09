@@ -108,6 +108,8 @@ const Profile = () => {
     catch { setError('Failed to update notification preferences'); }
   };
 
+
+
   const handleLogout = async () => { await logout(); navigate('/login'); };
 
   if (loading && !profile) {
@@ -169,6 +171,7 @@ const Profile = () => {
             <button className="tab" aria-selected={activeTab === 'notifications'} onClick={() => setActiveTab('notifications')}>
               Notifications
             </button>
+            
           </div>
 
           {/* Personal */}
@@ -262,12 +265,12 @@ const Profile = () => {
             </div>
           )}
 
-          {/* Notifications */}
+                    {/* Notifications */}
           {activeTab === 'notifications' && (
             <form onSubmit={handleNotifUpdate} className="grid gap-6">
               <div>
                 <h3 className="text-lg font-bold mb-1">Notification settings</h3>
-                <p className="small">Choose how and when you’re notified about community posts.</p>
+                <p className="small">Choose how and when you're notified about community posts.</p>
               </div>
 
               <div>
@@ -293,6 +296,8 @@ const Profile = () => {
               <button type="submit" className="btn btn-primary w-full sm:w-auto">Save preferences</button>
             </form>
           )}
+
+          
         </section>
       </main>
     </div>

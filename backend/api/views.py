@@ -30,6 +30,7 @@ import traceback
 from math import radians, sin, cos, sqrt, atan2
 from django.conf import settings
 from django.core.mail import send_mail
+from .textract_utils import verify_address_from_document
 
 
 # Initialize logger for tracking API operations and debugging
@@ -1037,5 +1038,202 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     
     distance = R * c
     return distance
+
+
+# ============================================================================
+# ADDRESS VERIFICATION WITH AWS TEXTRACT
+# ============================================================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def verify_user_address(request):
+    """
+    Verify user's address using AWS Textract on uploaded document
+    
+    Expected data:
+    - document: Image file (bank bill, utility bill, etc.)
+    - street_address: User's claimed street address
+    - city: User's claimed city
+    - state: User's claimed state
+    - postal_code: User's claimed postal code
+    """
+    try:
+        # Get uploaded document
+        document = request.FILES.get('document')
+        if not document:
+            return Response(
+                {'error': 'No document uploaded'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get claimed address
+        claimed_address = {
+            'street_address': request.data.get('street_address', ''),
+            'city': request.data.get('city', ''),
+            'state': request.data.get('state', ''),
+            'postal_code': request.data.get('postal_code', '')
+        }
+        
+        if not any(claimed_address.values()):
+            return Response(
+                {'error': 'No address information provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        logger.info(f"Starting address verification for user {request.user.username}")
+        logger.info(f"Claimed address: {claimed_address}")
+        
+        # Read document bytes
+        document_bytes = document.read()
+        logger.info(f"Document size: {len(document_bytes)} bytes")
+        
+        # Verify address using Textract
+        verification_result = verify_address_from_document(document_bytes, claimed_address)
+        
+        # Update user profile if verified
+        if verification_result['verified']:
+            profile = request.user.profile
+            profile.verified = True
+            
+            # Update address if not already set
+            if not profile.street_address:
+                profile.street_address = claimed_address['street_address']
+                profile.city = claimed_address['city']
+                profile.state = claimed_address['state']
+                profile.postal_code = claimed_address['postal_code']
+            
+            profile.save()
+            
+            logger.info(f"✓ User {request.user.username} address verified successfully")
+        else:
+            logger.warning(f"✗ User {request.user.username} address verification failed")
+        
+        return Response(verification_result, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Error in address verification: {error_msg}")
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        # Provide helpful error messages based on error type
+        if 'AccessDeniedException' in error_msg:
+            return Response({
+                'error': 'AWS Textract permission denied',
+                'message': 'The server is not authorized to use AWS Textract. Please contact the administrator.',
+                'help': 'Administrator: See AWS_TEXTRACT_SETUP.md for instructions on adding Textract permissions to IAM user.',
+                'verified': False
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        elif 'InvalidParameterException' in error_msg:
+            return Response({
+                'error': 'Invalid document format',
+                'message': 'Please upload a clear image (JPG/PNG) or PDF file.',
+                'verified': False
+            }, status=status.HTTP_400_BAD_REQUEST)
+        elif 'ProvisionedThroughputExceededException' in error_msg:
+            return Response({
+                'error': 'Service temporarily unavailable',
+                'message': 'Too many verification requests. Please try again in a few moments.',
+                'verified': False
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        else:
+            return Response({
+                'error': 'Address verification failed',
+                'message': 'An error occurred during verification. Please try again.',
+                'details': error_msg if settings.DEBUG else 'Contact support if the problem persists.',
+                'verified': False
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([])  # Allow unauthenticated access
+@parser_classes([MultiPartParser, FormParser])
+def verify_address_public(request):
+    """
+    Public endpoint to verify address from document BEFORE user registration.
+    This allows verification without authentication, preventing account creation
+    if verification fails.
+    
+    Expected data:
+    - document: Image file (bank bill, utility bill, etc.)
+    - street_address: User's claimed street address
+    - city: User's claimed city
+    - state: User's claimed state
+    - postal_code: User's claimed postal code
+    - verify_only: 'true' (indicates this is pre-registration verification)
+    """
+    try:
+        # Get uploaded document
+        document = request.FILES.get('document')
+        if not document:
+            return Response(
+                {'error': 'No document uploaded', 'verified': False},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get claimed address
+        claimed_address = {
+            'street_address': request.data.get('street_address', ''),
+            'city': request.data.get('city', ''),
+            'state': request.data.get('state', ''),
+            'postal_code': request.data.get('postal_code', '')
+        }
+        
+        if not any(claimed_address.values()):
+            return Response(
+                {'error': 'No address information provided', 'verified': False},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        logger.info(f"Public address verification requested")
+        logger.info(f"Claimed address: {claimed_address}")
+        
+        # Read document bytes
+        document_bytes = document.read()
+        logger.info(f"Document size: {len(document_bytes)} bytes")
+        
+        # Verify address using Textract
+        verification_result = verify_address_from_document(document_bytes, claimed_address)
+        
+        logger.info(f"Verification result: {verification_result.get('verified')} ({verification_result.get('confidence', 0)*100:.1f}%)")
+        
+        return Response(verification_result, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Error in public address verification: {error_msg}")
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        # Provide helpful error messages based on error type
+        if 'AccessDeniedException' in error_msg:
+            return Response({
+                'error': 'AWS Textract permission denied',
+                'message': 'The server is not authorized to use AWS Textract. Please contact the administrator.',
+                'help': 'Administrator: See AWS_TEXTRACT_SETUP.md for instructions on adding Textract permissions to IAM user.',
+                'verified': False
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        elif 'InvalidParameterException' in error_msg:
+            return Response({
+                'error': 'Invalid document format',
+                'message': 'Please upload a clear image (JPG/PNG) or PDF file.',
+                'verified': False
+            }, status=status.HTTP_400_BAD_REQUEST)
+        elif 'ProvisionedThroughputExceededException' in error_msg:
+            return Response({
+                'error': 'Service temporarily unavailable',
+                'message': 'Too many verification requests. Please try again in a few moments.',
+                'verified': False
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        else:
+            return Response({
+                'error': 'Address verification failed',
+                'message': 'An error occurred during verification. Please try again.',
+                'details': error_msg if settings.DEBUG else 'Contact support if the problem persists.',
+                'verified': False
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 
