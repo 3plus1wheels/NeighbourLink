@@ -6,11 +6,12 @@ const PostList = ({ refreshTrigger }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('time'); // 'time', 'urgency', 'upvotes'
   const [currentImageIndex, setCurrentImageIndex] = useState({});
 
   useEffect(() => {
     fetchPosts();
-  }, [refreshTrigger, filter]);
+  }, [refreshTrigger, filter, sortBy]);
 
   const fetchPosts = async () => {
     try {
@@ -26,13 +27,47 @@ const PostList = ({ refreshTrigger }) => {
         ? response.data
         : response.data.posts || [];
 
-      setPosts(postsData);
+      // Sort posts based on selected sort option
+      const sortedPosts = sortPosts(postsData, sortBy);
+      setPosts(sortedPosts);
       setError('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load posts');
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const sortPosts = (postsArray, sortOption) => {
+    const sorted = [...postsArray];
+    
+    switch (sortOption) {
+      case 'time':
+        // Sort by newest first (default)
+        return sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      
+      case 'urgency':
+        // Sort by urgency level: high > medium > low, then by time
+        const urgencyOrder = { high: 3, med: 2, low: 1 };
+        return sorted.sort((a, b) => {
+          const urgencyDiff = (urgencyOrder[b.urgency] || 0) - (urgencyOrder[a.urgency] || 0);
+          if (urgencyDiff !== 0) return urgencyDiff;
+          // If same urgency, sort by time
+          return new Date(b.created_at) - new Date(a.created_at);
+        });
+      
+      case 'upvotes':
+        // Sort by most upvotes first, then by time
+        return sorted.sort((a, b) => {
+          const upvoteDiff = (b.upvote_count || 0) - (a.upvote_count || 0);
+          if (upvoteDiff !== 0) return upvoteDiff;
+          // If same upvotes, sort by time
+          return new Date(b.created_at) - new Date(a.created_at);
+        });
+      
+      default:
+        return sorted;
     }
   };
 
@@ -154,6 +189,43 @@ const PostList = ({ refreshTrigger }) => {
             onClick={() => setFilter('low')}
           >
             Low
+          </button>
+        </div>
+      </div>
+
+      {/* Sort Options */}
+      <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-200">
+        <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Sort by:</span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSortBy('time')}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+              sortBy === 'time'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            🕒 Newest
+          </button>
+          <button
+            onClick={() => setSortBy('urgency')}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+              sortBy === 'urgency'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            🚨 Urgency
+          </button>
+          <button
+            onClick={() => setSortBy('upvotes')}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+              sortBy === 'upvotes'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            ▲ Most Upvoted
           </button>
         </div>
       </div>
