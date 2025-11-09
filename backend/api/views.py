@@ -21,11 +21,14 @@ from .serializers import (
     RegisterSerializer, LoginSerializer, UserSerializer,
     PostCreateSerializer, PostListSerializer, PostSerializer,
     ProfileDetailSerializer, ProfileUpdateSerializer,
-    NotificationPreferenceUpdateSerializer, PostUpdateSerializer
+    NotificationPreferenceUpdateSerializer, PostUpdateSerializer,
+    NotificationSerializer
 )
-from .models import Post, Profile, NotificationPreference
+from .models import Post, Profile, NotificationPreference, Notification
 import logging
 import traceback
+from math import radians, sin, cos, sqrt, atan2
+
 
 # Initialize logger for tracking API operations and debugging
 logger = logging.getLogger(__name__)
@@ -278,16 +281,98 @@ def create_post(request):
         Supports multipart/form-data for file uploads and JSON for text-only posts.
     """
     # Pass request context to access authenticated user
-    serializer = PostCreateSerializer(data=request.data, context={'request': request})
-    if serializer.is_valid():
-        # Save post with authenticated user as author
-        post = serializer.save()
-        # Return full post details including author information
-        response_serializer = PostSerializer(post)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        logger.info(f"Creating post for user: {request.user.username}")
+        logger.info(f"Request data: {request.data}")
+        
+        serializer = PostCreateSerializer(data=request.data, context={'request': request})
+        
+        if serializer.is_valid():
+            post = serializer.save()
+            logger.info(f"Post created successfully with ID: {post.id}")
+            
+            # Create notifications for nearby users
+            if post.latitude and post.longitude:
+                create_proximity_notifications(post)
+            
+            # Return the created post with all details
+            response_serializer = PostSerializer(post)
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            logger.error(f"Serializer errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        logger.error(f"Error creating post: {str(e)}")
+        return Response(
+            {'error': 'An error occurred while creating the post'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
+def create_proximity_notifications(post):
+    """
+    Create notifications for users within a certain radius of the post location.
+    
+    This function identifies users whose profiles are located within a defined
+    radius (e.g., 5 km) of the post's latitude and longitude. It then creates
+    notification entries for those users based on their notification preferences.
+    
+    Args:
+        post (Post): The post object containing location data.
+    """
+    from django.core.mail import send_mail
+    from django.conf import settings
+    try:
+        profiles = Profile.objects.exclude(user=post.author).filter(
+            latitude__isnull=False,
+            longitude__isnull=False,
+            user__email__isnull=False
+        )
+        for profile in profiles:
+            distance = calculate_distance(
+                post.latitude, post.longitude,
+                profile.latitude, profile.longitude
+            )
+            max_distance_km = 0.75  # 750 meters
+            if distance <= max_distance_km:
+                try:
+                    notif_pref = NotificationPreference.objects.get(user=profile.user)
+                except NotificationPreference.DoesNotExist:
+                    notif_pref = NotificationPreference.objects.create(
+                        user=profile.user,
+                        min_urgency='low',
+                        email_enabled=True,
+                        sms_enabled=False
+                    )
+                urgency_levels = {'low': 1, 'med': 2, 'medium': 2, 'high': 3}
+                post_urgency_level = urgency_levels.get(post.urgency, 1)
+                min_urgency_level = urgency_levels.get(notif_pref.min_urgency, 1)
+                if post_urgency_level >= min_urgency_level and notif_pref.email_enabled:
+                    subject = f'NeighbourLink: New {post.get_urgency_display()} post near you'
+                    location_info = f'{post.postal_code}' if post.postal_code else f'({post.latitude}, {post.longitude})'
+                    message = (
+                        f'Hi {profile.user.username},\n\n'
+                        f'A new post was created near your location ({distance*1000:.0f} meters away):\n\n'
+                        f'Title: {post.title}\n'
+                        f'Author: {post.author.username}\n'
+                        f'Urgency: {post.get_urgency_display()}\n'
+                        f'Description: {post.body}\n'
+                        f'Location: {location_info}\n\n'
+                        f'Log in to NeighbourLink to view and respond.\n\n'
+                        f'Thank you!\nNeighbourLink Team'
+                    )
+                    send_mail(
+                        subject,
+                        message,
+                        settings.DEFAULT_FROM_EMAIL,
+                        [profile.user.email],
+                        fail_silently=False,
+                    )
+                    logger.info(f"Email sent to {profile.user.email} for post {post.id} ({distance:.2f}km)")
+    except Exception as e:
+        logger.error(f"Error sending proximity emails: {str(e)}")
+
+            
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -668,5 +753,109 @@ def update_notification_preferences(request):
         return Response({'error': 'Notification preferences not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
+# ============================================================================
+# NOTIFICATION VIEWS
+# ============================================================================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_notifications(request):
+    """Get all notifications for the current user"""
+    try:
+        notifications = Notification.objects.filter(user=request.user).order_by('-created_at')
+        serializer = NotificationSerializer(notifications, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error fetching notifications: {str(e)}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_unread_notifications(request):
+    """Get unread notifications count"""
+    try:
+        count = Notification.objects.filter(user=request.user, is_read=False).count()
+        return Response({'unread_count': count}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error fetching unread count: {str(e)}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_notification_read(request, notification_id):
+    """Mark a notification as read"""
+    try:
+        notification = Notification.objects.get(id=notification_id, user=request.user)
+        notification.is_read = True
+        notification.save()
+        return Response({'message': 'Notification marked as read'}, status=status.HTTP_200_OK)
+    except Notification.DoesNotExist:
+        return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error marking notification as read: {str(e)}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_all_notifications_read(request):
+    """Mark all notifications as read"""
+    try:
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return Response({'message': 'All notifications marked as read'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error marking all notifications as read: {str(e)}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_notification(request, notification_id):
+    """Delete a notification"""
+    try:
+        notification = Notification.objects.get(id=notification_id, user=request.user)
+        notification.delete()
+        return Response({'message': 'Notification deleted'}, status=status.HTTP_200_OK)
+    except Notification.DoesNotExist:
+        return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error deleting notification: {str(e)}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate the Haversine distance between two geographic coordinates.
+    
+    Args:
+        lat1 (float): Latitude of the first point
+        lon1 (float): Longitude of the first point
+        lat2 (float): Latitude of the second point
+        lon2 (float): Longitude of the second point
+    
+    Returns:
+        float: Distance in kilometers between the two points
+    """
+
+    # Radius of the Earth in kilometers
+    R = 6371.0
+
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    
+    distance = R * c
+    return distance
 
 
