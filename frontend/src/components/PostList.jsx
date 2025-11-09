@@ -53,63 +53,63 @@ const PostList = ({ refreshTrigger }) => {
 
   if (loading) {
     return (
-      <div className="bg-white shadow rounded-lg p-6">
-        <p className="text-center text-gray-500">Loading posts...</p>
+      <div className="bg-white border-2 border-black p-6">
+        <p className="text-center text-gray-800">Loading posts...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-white shadow rounded-lg p-6">
-        <p className="text-center text-red-500">{error}</p>
+      <div className="bg-white border-2 border-black p-6">
+        <p className="text-center text-black">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white shadow rounded-lg p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Community Posts</h2>
+    <div className="bg-white border-2 border-black p-6">
+      <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-black">
+        <h2 className="text-2xl font-bold text-black uppercase tracking-wide">Community Posts</h2>
         
         {/* Filter */}
-        <div className="flex space-x-2">
+        <div className="flex space-x-0 border-2 border-black">
           <button
             onClick={() => setFilter('all')}
-            className={`px-3 py-1 rounded-md text-sm font-medium ${
+            className={`px-4 py-2 text-sm font-bold uppercase tracking-wide border-r-2 border-black ${
               filter === 'all'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-black text-white'
+                : 'bg-white text-black hover:bg-gray-100'
             }`}
           >
             All
           </button>
           <button
             onClick={() => setFilter('high')}
-            className={`px-3 py-1 rounded-md text-sm font-medium ${
+            className={`px-4 py-2 text-sm font-bold uppercase tracking-wide border-r-2 border-black ${
               filter === 'high'
-                ? 'bg-red-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-black text-white'
+                : 'bg-white text-black hover:bg-gray-100'
             }`}
           >
             Urgent
           </button>
           <button
             onClick={() => setFilter('med')}
-            className={`px-3 py-1 rounded-md text-sm font-medium ${
+            className={`px-4 py-2 text-sm font-bold uppercase tracking-wide border-r-2 border-black ${
               filter === 'med'
-                ? 'bg-yellow-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-black text-white'
+                : 'bg-white text-black hover:bg-gray-100'
             }`}
           >
             Medium
           </button>
           <button
             onClick={() => setFilter('low')}
-            className={`px-3 py-1 rounded-md text-sm font-medium ${
+            className={`px-4 py-2 text-sm font-bold uppercase tracking-wide ${
               filter === 'low'
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-black text-white'
+                : 'bg-white text-black hover:bg-gray-100'
             }`}
           >
             Low
@@ -118,7 +118,7 @@ const PostList = ({ refreshTrigger }) => {
       </div>
 
       {posts.length === 0 ? (
-        <p className="text-center text-gray-500 py-8">
+        <p className="text-center text-gray-700 py-12 border-2 border-dashed border-gray-300">
           No posts yet. Be the first to create one!
         </p>
       ) : (
@@ -126,60 +126,58 @@ const PostList = ({ refreshTrigger }) => {
           {posts.map((post) => (
             <div
               key={post.id}
-              className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+              className="border-2 border-black p-5 hover:bg-gray-50 transition-colors"
             >
               {/* Post Header */}
-              <div className="flex justify-between items-start mb-3">
+              <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                  <h3 className="text-xl font-bold text-black uppercase mb-1">
                     {post.title}
                   </h3>
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <span>By {post.author_username}</span>
+                  <div className="flex items-center space-x-3 text-sm text-gray-700">
+                    <span className="font-bold">By {post.author_username}</span>
                     <span>•</span>
                     <span>{formatDate(post.created_at)}</span>
                     {post.neighborhood_name && (
                       <>
                         <span>•</span>
-                        <span>📍 {post.neighborhood_name}</span>
+                        <span>{post.neighborhood_name}</span>
                       </>
                     )}
                   </div>
                 </div>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    urgencyBadges[post.urgency].bg
-                  } ${urgencyBadges[post.urgency].text}`}
-                >
-                  {urgencyBadges[post.urgency].label}
+                <span className="px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-wide whitespace-nowrap ml-4">
+                  {post.urgency === 'low' && 'Low'}
+                  {post.urgency === 'med' && 'Medium'}
+                  {post.urgency === 'high' && 'High'}
                 </span>
               </div>
 
               {/* Post Body */}
               {post.body && (
-                <p className="text-gray-700 mb-3 whitespace-pre-wrap">{post.body}</p>
+                <p className="text-gray-800 mb-4 leading-relaxed whitespace-pre-wrap">{post.body}</p>
               )}
 
               {/* Post Images */}
               {post.images && post.images.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
                   {post.images.map((image, index) => (
                     <img
                       key={index}
                       src={`http://localhost:8000${image.image}`}
                       alt={image.caption || `Image ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-md border border-gray-300"
+                      className="w-full h-32 object-cover border-2 border-black"
                     />
                   ))}
                 </div>
               )}
 
               {/* Post Footer */}
-              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                <span>👍 {post.like_count || 0} likes</span>
-                <span>💬 {post.comment_count || 0} comments</span>
+              <div className="flex items-center space-x-6 text-sm text-gray-700 pt-4 border-t-2 border-gray-200">
+                <span className="font-bold">{post.like_count || 0} likes</span>
+                <span className="font-bold">{post.comment_count || 0} comments</span>
                 {post.dislike_count > 0 && (
-                  <span>👎 {post.dislike_count}</span>
+                  <span className="font-bold">{post.dislike_count} dislikes</span>
                 )}
               </div>
             </div>

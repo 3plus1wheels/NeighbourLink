@@ -222,3 +222,73 @@ class PostListSerializer(serializers.ModelSerializer):
     
     def get_dislike_count(self, obj):
         return obj.dislike_count()
+
+# Profile Management Serializers
+class ProfileDetailSerializer(serializers.ModelSerializer):
+    """Detailed profile information"""
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.CharField(source='user.email', read_only=True)
+    neighborhood_name = serializers.CharField(source='neighborhood.name', read_only=True, allow_null=True)
+    post_count = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+    member_since = serializers.DateTimeField(source='created_at', read_only=True)
+    
+    class Meta:
+        model = Profile
+        fields = [
+            'id', 'username', 'email', 'profile_photo', 'bio', 'phone_number',
+            'verified', 'karmara_points', 'neighborhood_name',
+            'post_count', 'comment_count', 'member_since', 'updated_at'
+        ]
+        read_only_fields = ['verified', 'karmara_points']
+    
+    def get_post_count(self, obj):
+        return obj.user.posts.count()
+    
+    def get_comment_count(self, obj):
+        return obj.user.comments.count()
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating profile"""
+    email = serializers.EmailField(write_only=True, required=False)
+    
+    class Meta:
+        model = Profile
+        fields = ['profile_photo', 'bio', 'phone_number', 'email']
+    
+    def update(self, instance, validated_data):
+        # Handle email update separately (on User model)
+        email = validated_data.pop('email', None)
+        if email:
+            instance.user.email = email
+            instance.user.save()
+        
+        # Update profile fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
+class NotificationPreferenceUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating notification preferences"""
+    class Meta:
+        model = NotificationPreference
+        fields = ['min_urgency', 'sms_enabled', 'email_enabled']
+    
+    def validate_min_urgency(self, value):
+        if value not in ['low', 'med', 'high']:
+            raise serializers.ValidationError("Invalid urgency level")
+        return value
+
+class PostUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating posts"""
+    class Meta:
+        model = Post
+        fields = ['title', 'body', 'urgency']
+    
+    def validate(self, attrs):
+        # Ensure only the author can update
+        request = self.context.get('request')
+        if request and self.instance.author != request.user:
+            raise serializers.ValidationError("You can only edit your own posts")
+        return attrs

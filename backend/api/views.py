@@ -7,9 +7,11 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
     RegisterSerializer, LoginSerializer, UserSerializer,
-    PostCreateSerializer, PostListSerializer, PostSerializer
+    PostCreateSerializer, PostListSerializer, PostSerializer,
+    ProfileDetailSerializer, ProfileUpdateSerializer,
+    NotificationPreferenceUpdateSerializer, PostUpdateSerializer
 )
-from .models import Post
+from .models import Post, Profile, NotificationPreference
 
 
 # Register View
@@ -157,6 +159,111 @@ def delete_post(request, post_id):
         return Response({'message': 'Post deleted successfully'}, status=status.HTTP_200_OK)
     except Post.DoesNotExist:
         return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+# Profile Views
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_profile(request):
+    """
+    Get current user's profile
+    """
+    try:
+        profile = request.user.profile
+        serializer = ProfileDetailSerializer(profile)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Profile.DoesNotExist:
+        return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['PUT', 'PATCH'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
+def update_profile(request):
+    """
+    Update current user's profile
+    """
+    try:
+        profile = request.user.profile
+        serializer = ProfileUpdateSerializer(profile, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            # Return updated profile
+            response_serializer = ProfileDetailSerializer(profile)
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Profile.DoesNotExist:
+        return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_posts(request):
+    """
+    Get all posts by current user
+    """
+    posts = Post.objects.filter(author=request.user)
+    serializer = PostListSerializer(posts, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['PUT', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def update_post(request, post_id):
+    """
+    Update a post (only by the author)
+    """
+    try:
+        post = Post.objects.get(id=post_id)
+        
+        # Check if the user is the author
+        if post.author != request.user:
+            return Response(
+                {'error': 'You do not have permission to edit this post'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        serializer = PostUpdateSerializer(post, data=request.data, partial=True, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            # Return updated post
+            response_serializer = PostSerializer(post)
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Post.DoesNotExist:
+        return Response({'error': 'Post not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+# Notification Preference Views
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_notification_preferences(request):
+    """
+    Get current user's notification preferences
+    """
+    try:
+        preferences = request.user.notification_pref
+        serializer = NotificationPreferenceUpdateSerializer(preferences)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except NotificationPreference.DoesNotExist:
+        return Response({'error': 'Notification preferences not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['PUT', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def update_notification_preferences(request):
+    """
+    Update current user's notification preferences
+    """
+    try:
+        preferences = request.user.notification_pref
+        serializer = NotificationPreferenceUpdateSerializer(preferences, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except NotificationPreference.DoesNotExist:
+        return Response({'error': 'Notification preferences not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
 

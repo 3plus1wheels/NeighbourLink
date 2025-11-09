@@ -100,25 +100,25 @@ const CreatePost = ({ onPostCreated }) => {
   };
 
   return (
-    <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Create a New Post</h2>
+    <div className="bg-white border-2 border-black p-6">
+      <h2 className="text-2xl font-bold text-black mb-6 uppercase tracking-wide">Create Post</h2>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+        <div className="mb-4 p-3 bg-black text-white border-2 border-black">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+        <div className="mb-4 p-3 bg-white text-black border-2 border-black">
           {success}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
         {/* Title */}
         <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="title" className="block text-sm font-bold text-black mb-2 uppercase tracking-wide">
             Title *
           </label>
           <input
@@ -128,14 +128,14 @@ const CreatePost = ({ onPostCreated }) => {
             value={formData.title}
             onChange={handleInputChange}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full px-4 py-3 border-2 border-black focus:outline-none focus:border-black"
             placeholder="What do you need help with?"
           />
         </div>
 
         {/* Body */}
         <div>
-          <label htmlFor="body" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="body" className="block text-sm font-bold text-black mb-2 uppercase tracking-wide">
             Description
           </label>
           <textarea
@@ -144,14 +144,14 @@ const CreatePost = ({ onPostCreated }) => {
             value={formData.body}
             onChange={handleInputChange}
             rows="4"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full px-4 py-3 border-2 border-black focus:outline-none focus:border-black"
             placeholder="Provide more details about your request..."
           />
         </div>
 
         {/* Urgency */}
         <div>
-          <label htmlFor="urgency" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="urgency" className="block text-sm font-bold text-black mb-2 uppercase tracking-wide">
             Urgency Level *
           </label>
           <select
@@ -159,19 +159,17 @@ const CreatePost = ({ onPostCreated }) => {
             name="urgency"
             value={formData.urgency}
             onChange={handleInputChange}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-              urgencyColors[formData.urgency]
-            }`}
+            className="w-full px-4 py-3 border-2 border-black focus:outline-none focus:border-black bg-white font-medium"
           >
-            <option value="low">🟢 Low - Can wait</option>
-            <option value="med">🟡 Medium - Soon</option>
-            <option value="high">🔴 High - Urgent</option>
+            <option value="low">Low — Can wait</option>
+            <option value="med">Medium — Soon</option>
+            <option value="high">High — Urgent</option>
           </select>
         </div>
 
         {/* Location */}
         <div>
-          <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="location" className="block text-sm font-bold text-black mb-2 uppercase tracking-wide">
             Location
           </label>
           <input
@@ -180,14 +178,14 @@ const CreatePost = ({ onPostCreated }) => {
             name="location"
             value={formData.location}
             onChange={handleInputChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full px-4 py-3 border-2 border-black focus:outline-none focus:border-black"
             placeholder="e.g., 123 Main St, Building A"
           />
         </div>
 
         {/* Images */}
         <div>
-          <label htmlFor="images" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="images" className="block text-sm font-bold text-black mb-2 uppercase tracking-wide">
             Images (optional)
           </label>
           <input
@@ -197,9 +195,9 @@ const CreatePost = ({ onPostCreated }) => {
             accept="image/*"
             multiple
             onChange={handleImageChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full px-4 py-3 border-2 border-black focus:outline-none focus:border-black"
           />
-          <p className="text-xs text-gray-500 mt-1">You can upload multiple images</p>
+          <p className="text-xs text-gray-600 mt-2">You can upload multiple images</p>
         </div>
 
         {/* Image Previews */}
@@ -210,12 +208,12 @@ const CreatePost = ({ onPostCreated }) => {
                 <img
                   src={preview}
                   alt={`Preview ${index + 1}`}
-                  className="w-full h-32 object-cover rounded-md border border-gray-300"
+                  className="w-full h-32 object-cover border-2 border-black"
                 />
                 <button
                   type="button"
                   onClick={() => removeImage(index)}
-                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
+                  className="absolute top-2 right-2 bg-black text-white w-8 h-8 flex items-center justify-center hover:bg-gray-800 font-bold text-xl border-2 border-white"
                 >
                   ×
                 </button>
@@ -229,10 +227,10 @@ const CreatePost = ({ onPostCreated }) => {
           <button
             type="submit"
             disabled={loading}
-            className={`px-6 py-2 text-white font-medium rounded-md ${
+            className={`w-full px-6 py-4 text-white font-bold text-lg uppercase tracking-wide border-2 border-black ${
               loading
                 ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-indigo-600 hover:bg-indigo-700'
+                : 'bg-black hover:bg-gray-800'
             }`}
           >
             {loading ? 'Creating...' : 'Create Post'}
