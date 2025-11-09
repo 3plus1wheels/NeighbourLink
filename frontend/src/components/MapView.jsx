@@ -129,7 +129,7 @@ const MapView = ({ nearbyOnly = true, urgencyFilter = 'all' }) => {
         <GoogleMap
           mapContainerStyle={mapContainerStyle}
           center={mapCenter}
-          zoom={12}
+          zoom={15}
           onLoad={onLoad}
           options={{ zoomControl: true, streetViewControl: false, mapTypeControl: false, fullscreenControl: true }}
         >
