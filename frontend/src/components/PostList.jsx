@@ -6,20 +6,43 @@ const PostList = ({ refreshTrigger }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
+  const [nearbyOnly, setNearbyOnly] = useState(true); // Default to nearby posts
 
   useEffect(() => {
     fetchPosts();
-  }, [refreshTrigger, filter]);
+  }, [refreshTrigger, filter, nearbyOnly]);
 
   const fetchPosts = async () => {
     try {
       setLoading(true);
-      const url = filter === 'all' ? '/posts/' : `/posts/?urgency=${filter}`;
+      
+      // Build URL with filters
+      let url = '/posts/';
+      const params = [];
+      
+      // Add nearby filter if enabled
+      if (nearbyOnly) {
+        params.push('nearby=true');
+      }
+      
+      // Add urgency filter if not 'all'
+      if (filter !== 'all') {
+        params.push(`urgency=${filter}`);
+      }
+      
+      // Combine params
+      if (params.length > 0) {
+        url += '?' + params.join('&');
+      }
+      
       const response = await api.get(url);
-      setPosts(response.data);
+      
+      // Handle both formats: direct array or object with posts array
+      const postsData = Array.isArray(response.data) ? response.data : response.data.posts || [];
+      setPosts(postsData);
       setError('');
     } catch (err) {
-      setError('Failed to load posts');
+      setError(err.response?.data?.error || 'Failed to load posts');
       console.error(err);
     } finally {
       setLoading(false);
@@ -69,6 +92,23 @@ const PostList = ({ refreshTrigger }) => {
 
   return (
     <div className="bg-white border-2 border-black p-6">
+      {/* Nearby Toggle */}
+      <div className="mb-4 flex items-center space-x-3">
+        <button
+          onClick={() => setNearbyOnly(!nearbyOnly)}
+          className={`px-4 py-2 border-2 border-black font-bold uppercase tracking-wide transition-colors ${
+            nearbyOnly
+              ? 'bg-black text-white'
+              : 'bg-white text-black hover:bg-gray-100'
+          }`}
+        >
+          {nearbyOnly ? '📍 Nearby (3km)' : '🌍 All Posts'}
+        </button>
+        <span className="text-sm text-gray-600">
+          {nearbyOnly ? 'Showing posts within 3km of your location' : 'Showing all posts'}
+        </span>
+      </div>
+
       <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-black">
         <h2 className="text-2xl font-bold text-black uppercase tracking-wide">Community Posts</h2>
         
