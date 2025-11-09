@@ -43,6 +43,9 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
     password2 = serializers.CharField(write_only=True, required=True)
     
+    # Phone number field
+    phone_number = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=20)
+    
     # Address fields (optional - not part of User model)
     street_address = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=255)
     city = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=100)
@@ -55,7 +58,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'password2', 'street_address', 'city', 'state', 'country', 'postal_code', 'latitude', 'longitude']
+        fields = ['username', 'email', 'password', 'password2', 'phone_number', 'street_address', 'city', 'state', 'country', 'postal_code', 'latitude', 'longitude']
         extra_kwargs = {
             'email': {'required': True},
         }
@@ -80,7 +83,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        # Extract address fields
+        # Extract profile fields
+        phone_number = validated_data.pop('phone_number', '')
         street_address = validated_data.pop('street_address', '')
         city = validated_data.pop('city', '')
         state = validated_data.pop('state', '')
@@ -98,8 +102,9 @@ class RegisterSerializer(serializers.ModelSerializer):
             password=validated_data['password']
         )
         
-        # Update profile with address data
+        # Update profile with all data
         profile = user.profile
+        profile.phone_number = phone_number
         profile.street_address = street_address
         profile.city = city
         profile.state = state

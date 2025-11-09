@@ -17,6 +17,7 @@ from rest_framework.decorators import api_view, permission_classes, parser_class
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
+import threading
 from .serializers import (
     RegisterSerializer, LoginSerializer, UserSerializer,
     PostCreateSerializer, PostListSerializer, PostSerializer,
@@ -385,11 +386,18 @@ def create_post(request):
             post = serializer.save()
             logger.info(f"Post created successfully with ID: {post.id}")
             
-            # Create notifications for nearby users
+            # Create notifications for nearby users ASYNCHRONOUSLY
+            # This allows the post to be created immediately without waiting for emails/SMS
             if post.latitude and post.longitude:
-                create_proximity_notifications(post)
+                notification_thread = threading.Thread(
+                    target=create_proximity_notifications,
+                    args=(post,),
+                    daemon=True  # Thread will not prevent program exit
+                )
+                notification_thread.start()
+                logger.info(f"Started background notification thread for post {post.id}")
             
-            # Return the created post with all details
+            # Return the created post with all details immediately
             response_serializer = PostSerializer(post)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         else:

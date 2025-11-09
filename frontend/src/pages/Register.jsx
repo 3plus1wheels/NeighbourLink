@@ -8,7 +8,13 @@ const Register = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
   const [step, setStep] = useState(1); // 1: Basic Info, 2: Address & Verification
-  const [formData, setFormData] = useState({ username: '', email: '', password: '', password2: '' });
+  const [formData, setFormData] = useState({ 
+    username: '', 
+    email: '', 
+    password: '', 
+    password2: '',
+    phone_number: '' 
+  });
   const [addressData, setAddressData] = useState(null);
   const [document, setDocument] = useState(null);
   const [documentPreview, setDocumentPreview] = useState(null);
@@ -264,6 +270,19 @@ const Register = () => {
                 onChange={handleChange} 
                 required 
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-2 uppercase tracking-wide">Phone Number *</label>
+              <input 
+                className="input" 
+                type="tel" 
+                name="phone_number" 
+                value={formData.phone_number} 
+                onChange={handleChange}
+                placeholder="+1 (123) 456-7890"
+              />
+              <p className="text-xs text-gray-600 mt-1">For SMS notifications (format: +1 123-456-7890)</p>
             </div>
 
             <div>
