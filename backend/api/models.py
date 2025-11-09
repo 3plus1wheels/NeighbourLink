@@ -30,6 +30,10 @@ class Profile(models.Model):
     )
     karma_points = models.IntegerField(default=0)
     
+    # Profile photo and bio
+    profile_photo = models.ImageField(upload_to='profile_photos/%Y/%m/%d/', blank=True, null=True)
+    bio = models.TextField(max_length=500, blank=True)
+    
     # Address fields
     street_address = models.CharField(max_length=255, blank=True)
     city = models.CharField(max_length=100, blank=True)
@@ -40,6 +44,7 @@ class Profile(models.Model):
     longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"Profile({self.user.username})"
@@ -137,12 +142,13 @@ class Comment(models.Model):
 
 class NotificationPreference(models.Model):
     """
-    Stores a user's preference for notifications in-app / SMS.
+    Stores a user's preference for notifications in-app / SMS / Email.
     min_urgency determines the minimum post urgency they'll get notified about.
     """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='notification_pref')
     min_urgency = models.CharField(max_length=4, choices=Post.URGENCY_CHOICES, default=Post.URGENCY_LOW)
     sms_enabled = models.BooleanField(default=False)
+    email_enabled = models.BooleanField(default=True)
 
     def __str__(self):
         return f"NotifPref({self.user.username})"

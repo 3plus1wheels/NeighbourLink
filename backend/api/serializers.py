@@ -196,3 +196,153 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = '__all__'
+
+# Post Creation Serializers
+class PostCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating posts with location and urgency"""
+    images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+    location = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    neighborhood_id = serializers.IntegerField(required=False, allow_null=True)
+    
+    class Meta:
+        model = Post
+        fields = ['title', 'body', 'urgency', 'location', 'neighborhood_id', 'images']
+    
+    def create(self, validated_data):
+        images_data = validated_data.pop('images', [])
+        location = validated_data.pop('location', '')
+        neighborhood_id = validated_data.pop('neighborhood_id', None)
+        
+        # Get the author from context (current user)
+        author = self.context['request'].user
+        
+        # Get neighborhood if provided
+        neighborhood = None
+        if neighborhood_id:
+            try:
+                neighborhood = Neighborhood.objects.get(id=neighborhood_id)
+            except Neighborhood.DoesNotExist:
+                pass
+        
+        # If no neighborhood provided, try to get from user's profile
+        if not neighborhood and hasattr(author, 'profile') and author.profile.neighborhood:
+            neighborhood = author.profile.neighborhood
+        
+        # Create the post
+        post = Post.objects.create(
+            author=author,
+            neighborhood=neighborhood,
+            **validated_data
+        )
+        
+        # Save location as part of the body or create a separate location field if needed
+        if location:
+            post.body = f"{post.body}\n\n📍 Location: {location}" if post.body else f"📍 Location: {location}"
+            post.save()
+        
+        # Create post images
+        for index, image_data in enumerate(images_data):
+            PostImage.objects.create(
+                post=post,
+                image=image_data,
+                order=index
+            )
+        
+        return post
+
+class PostListSerializer(serializers.ModelSerializer):
+    """Serializer for listing posts with minimal data"""
+    author_username = serializers.CharField(source='author.username', read_only=True)
+    neighborhood_name = serializers.CharField(source='neighborhood.name', read_only=True, allow_null=True)
+    images = PostImageSerializer(many=True, read_only=True)
+    like_count = serializers.SerializerMethodField()
+    dislike_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Post
+        fields = [
+            'id', 'title', 'body', 'urgency', 'author_username', 
+            'neighborhood_name', 'comment_count', 'created_at', 
+            'updated_at', 'images', 'like_count', 'dislike_count'
+        ]
+    
+    def get_like_count(self, obj):
+        return obj.like_count()
+    
+    def get_dislike_count(self, obj):
+        return obj.dislike_count()
+
+# Profile Management Serializers
+class ProfileDetailSerializer(serializers.ModelSerializer):
+    """Detailed profile information"""
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.CharField(source='user.email', read_only=True)
+    neighborhood_name = serializers.CharField(source='neighborhood.name', read_only=True, allow_null=True)
+    post_count = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+    member_since = serializers.DateTimeField(source='created_at', read_only=True)
+    
+    class Meta:
+        model = Profile
+        fields = [
+            'id', 'username', 'email', 'profile_photo', 'bio', 'phone_number',
+            'verified', 'karmara_points', 'neighborhood_name',
+            'post_count', 'comment_count', 'member_since', 'updated_at'
+        ]
+        read_only_fields = ['verified', 'karmara_points']
+    
+    def get_post_count(self, obj):
+        return obj.user.posts.count()
+    
+    def get_comment_count(self, obj):
+        return obj.user.comments.count()
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating profile"""
+    email = serializers.EmailField(write_only=True, required=False)
+    
+    class Meta:
+        model = Profile
+        fields = ['profile_photo', 'bio', 'phone_number', 'email']
+    
+    def update(self, instance, validated_data):
+        # Handle email update separately (on User model)
+        email = validated_data.pop('email', None)
+        if email:
+            instance.user.email = email
+            instance.user.save()
+        
+        # Update profile fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
+class NotificationPreferenceUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating notification preferences"""
+    class Meta:
+        model = NotificationPreference
+        fields = ['min_urgency', 'sms_enabled', 'email_enabled']
+    
+    def validate_min_urgency(self, value):
+        if value not in ['low', 'med', 'high']:
+            raise serializers.ValidationError("Invalid urgency level")
+        return value
+
+class PostUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating posts"""
+    class Meta:
+        model = Post
+        fields = ['title', 'body', 'urgency']
+    
+    def validate(self, attrs):
+        # Ensure only the author can update
+        request = self.context.get('request')
+        if request and self.instance.author != request.user:
+            raise serializers.ValidationError("You can only edit your own posts")
+        return attrs
