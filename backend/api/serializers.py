@@ -290,11 +290,13 @@ class ProfileDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
-            'id', 'username', 'email', 'profile_photo', 'bio', 'phone_number',
-            'verified', 'karmara_points', 'neighborhood_name',
+            'id', 'username', 'email', 'bio', 'phone_number',
+            'verified', 'karma_points', 'neighborhood_name',
+            'street_address', 'city', 'state', 'country', 'postal_code',
+            'latitude', 'longitude',
             'post_count', 'comment_count', 'member_since', 'updated_at'
         ]
-        read_only_fields = ['verified', 'karmara_points']
+        read_only_fields = ['verified', 'karma_points']
     
     def get_post_count(self, obj):
         return obj.user.posts.count()
@@ -308,7 +310,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Profile
-        fields = ['profile_photo', 'bio', 'phone_number', 'email']
+        fields = ['bio', 'phone_number', 'email', 'street_address', 'city', 'state', 'country', 'postal_code', 'latitude', 'longitude']
     
     def update(self, instance, validated_data):
         # Handle email update separately (on User model)

@@ -31,7 +31,6 @@ class Profile(models.Model):
     karma_points = models.IntegerField(default=0)
     
     # Profile photo and bio
-    profile_photo = models.ImageField(upload_to='profile_photos/%Y/%m/%d/', blank=True, null=True)
     bio = models.TextField(max_length=500, blank=True)
     
     # Address fields
