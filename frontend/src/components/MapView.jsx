@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, useLoadScript, Marker, InfoWindow } from '@react-google-maps/api';
 import api from '../utils/api';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+// Load Google Maps script only once
+const libraries = ['places'];
 
 const mapContainerStyle = {
   width: '100%',
@@ -32,19 +35,26 @@ const getMarkerIcon = (urgency) => {
     strokeWeight: 2,
     strokeColor: '#FFFFFF',
     scale: 2,
-    anchor: new google.maps.Point(12, 22),
+    anchor: new window.google.maps.Point(12, 22),
   };
   
   return svgMarker;
 };
 
 const MapView = ({ nearbyOnly = true, urgencyFilter = 'all' }) => {
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [selectedPost, setSelectedPost] = useState(null);
-  const [mapCenter, setMapCenter] = useState(defaultCenter);
-  const [userLocation, setUserLocation] = useState(null);
+    const [posts, setPosts] = useState([]);
+    const [userLocation, setUserLocation] = useState(null);
+    const [selectedPost, setSelectedPost] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [mapCenter, setMapCenter] = useState(defaultCenter);
+    const [map, setMap] = useState(null);
+
+    // Use the useLoadScript hook to load Google Maps only once
+    const { isLoaded, loadError } = useLoadScript({
+        googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+        libraries
+    });
 
   useEffect(() => {
     fetchPostsForMap();
@@ -111,7 +121,8 @@ const MapView = ({ nearbyOnly = true, urgencyFilter = 'all' }) => {
     });
   };
 
-  const onLoad = useCallback((map) => {
+  const onLoad = useCallback((mapInstance) => {
+    setMap(mapInstance);
     // Optional: Fit bounds to show all markers
     if (posts.length > 0) {
       const bounds = new window.google.maps.LatLngBounds();
@@ -124,16 +135,35 @@ const MapView = ({ nearbyOnly = true, urgencyFilter = 'all' }) => {
       if (userLocation) {
         bounds.extend(userLocation);
       }
-      map.fitBounds(bounds);
+      mapInstance.fitBounds(bounds);
     }
   }, [posts, userLocation]);
 
+  // Handle Google Maps loading states
   if (!GOOGLE_MAPS_API_KEY) {
     return (
       <div className="bg-white border-2 border-black p-6">
         <p className="text-red-600 font-bold">
           Google Maps API key not configured. Please add VITE_GOOGLE_MAPS_API_KEY to your .env file.
         </p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="bg-white border-2 border-black p-6">
+        <p className="text-red-600 font-bold">
+          Error loading maps: {loadError.message}
+        </p>
+      </div>
+    );
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="bg-white border-2 border-black p-6">
+        <p className="text-black font-bold">Loading Google Maps...</p>
       </div>
     );
   }
@@ -179,19 +209,18 @@ const MapView = ({ nearbyOnly = true, urgencyFilter = 'all' }) => {
           </div>
         )}
 
-        <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY}>
-          <GoogleMap
-            mapContainerStyle={mapContainerStyle}
-            center={mapCenter}
-            zoom={12}
-            onLoad={onLoad}
-            options={{
-              zoomControl: true,
-              streetViewControl: false,
-              mapTypeControl: false,
-              fullscreenControl: true,
-            }}
-          >
+        <GoogleMap
+          mapContainerStyle={mapContainerStyle}
+          center={mapCenter}
+          zoom={12}
+          onLoad={onLoad}
+          options={{
+            zoomControl: true,
+            streetViewControl: false,
+            mapTypeControl: false,
+            fullscreenControl: true,
+          }}
+        >
             {/* User location marker */}
             {userLocation && (
               <Marker
@@ -263,8 +292,7 @@ const MapView = ({ nearbyOnly = true, urgencyFilter = 'all' }) => {
                 </div>
               </InfoWindow>
             )}
-          </GoogleMap>
-        </LoadScript>
+        </GoogleMap>
       </div>
 
       {/* Stats */}
