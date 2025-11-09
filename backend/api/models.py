@@ -45,6 +45,18 @@ class Profile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        """Round coordinates to 7 decimal places before saving (Google Maps can return 15+ decimals)"""
+        from decimal import Decimal, ROUND_HALF_UP
+        
+        if self.latitude is not None:
+            self.latitude = Decimal(str(self.latitude)).quantize(Decimal('0.0000001'), rounding=ROUND_HALF_UP)
+        
+        if self.longitude is not None:
+            self.longitude = Decimal(str(self.longitude)).quantize(Decimal('0.0000001'), rounding=ROUND_HALF_UP)
+        
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"Profile({self.user.username})"
 
@@ -78,6 +90,18 @@ class Post(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        """Round coordinates to 7 decimal places before saving (Google Maps can return 15+ decimals)"""
+        from decimal import Decimal, ROUND_HALF_UP
+        
+        if self.latitude is not None:
+            self.latitude = Decimal(str(self.latitude)).quantize(Decimal('0.0000001'), rounding=ROUND_HALF_UP)
+        
+        if self.longitude is not None:
+            self.longitude = Decimal(str(self.longitude)).quantize(Decimal('0.0000001'), rounding=ROUND_HALF_UP)
+        
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.title} ({self.urgency})"

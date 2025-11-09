@@ -3,10 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import CreatePost from '../components/CreatePost';
 import PostList from '../components/PostList';
+import MapView from '../components/MapView';
+
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
   const [refreshPosts, setRefreshPosts] = useState(0);
 
   const handleLogout = async () => {
@@ -24,8 +27,32 @@ const Dashboard = () => {
       <nav className="bg-black border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
+            <div className="flex items-center space-x-6">
               <h1 className="text-xl font-bold text-white tracking-wide">NEIGHBOURLINK</h1>
+              {!showCreatePost && (
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`px-4 py-2 text-sm font-medium border transition-colors ${
+                      viewMode === 'list'
+                        ? 'bg-white text-black border-white'
+                        : 'bg-black text-white border-white hover:bg-gray-800'
+                    }`}
+                  >
+                    📋 Feed
+                  </button>
+                  <button
+                    onClick={() => setViewMode('map')}
+                    className={`px-4 py-2 text-sm font-medium border transition-colors ${
+                      viewMode === 'map'
+                        ? 'bg-white text-black border-white'
+                        : 'bg-black text-white border-white hover:bg-gray-800'
+                    }`}
+                  >
+                    🗺️ Map
+                  </button>
+                </div>
+              )}
             </div>
             <div className="flex items-center space-x-4">
               <button
@@ -77,16 +104,21 @@ const Dashboard = () => {
           {/* Create Post Button */}
           <div className="mb-6">
             <button
-              onClick={() => setShowCreatePost(!showCreatePost)}
+              onClick={() => {
+                setShowCreatePost(!showCreatePost);
+                if (!showCreatePost) setViewMode('list');
+              }}
               className="w-full px-6 py-4 bg-black text-white font-bold text-lg uppercase tracking-wide hover:bg-gray-800 border-2 border-black transition-colors"
             >
-              {showCreatePost ? '← View All Posts' : '+ Create New Post'}
+              {showCreatePost ? '← Back to Feed' : '+ Create New Post'}
             </button>
           </div>
 
-          {/* Create Post Form or Post List */}
+          {/* Create Post Form, Post List, or Map View */}
           {showCreatePost ? (
             <CreatePost onPostCreated={handlePostCreated} />
+          ) : viewMode === 'map' ? (
+            <MapView nearbyOnly={true} urgencyFilter="all" />
           ) : (
             <PostList refreshTrigger={refreshPosts} />
           )}
