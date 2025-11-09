@@ -56,10 +56,20 @@ const MapView = ({ nearbyOnly = true, urgencyFilter = 'all' }) => {
         libraries
     });
 
+  // Fetch user location and posts whenever the map view is opened
   useEffect(() => {
-    fetchPostsForMap();
     getUserLocation();
+    fetchPostsForMap();
   }, [nearbyOnly, urgencyFilter]);
+
+  // Center and zoom map when user location is loaded
+  useEffect(() => {
+    if (map && userLocation) {
+      console.log('Setting map center and zoom:', userLocation);
+      map.panTo(userLocation);
+      map.setZoom(15); // Zoom level 15 for closer view - shows ~1.5km radius perfectly for 3km total area
+    }
+  }, [map, userLocation]);
 
   const getUserLocation = async () => {
     try {
@@ -67,8 +77,9 @@ const MapView = ({ nearbyOnly = true, urgencyFilter = 'all' }) => {
       if (response.data?.profile?.latitude && response.data?.profile?.longitude) {
         const userLat = parseFloat(response.data.profile.latitude);
         const userLng = parseFloat(response.data.profile.longitude);
-        setUserLocation({ lat: userLat, lng: userLng });
-        setMapCenter({ lat: userLat, lng: userLng });
+        const location = { lat: userLat, lng: userLng };
+        setUserLocation(location);
+        setMapCenter(location);
       }
     } catch (err) {
       console.error('Failed to get user location:', err);
@@ -123,21 +134,7 @@ const MapView = ({ nearbyOnly = true, urgencyFilter = 'all' }) => {
 
   const onLoad = useCallback((mapInstance) => {
     setMap(mapInstance);
-    // Optional: Fit bounds to show all markers
-    if (posts.length > 0) {
-      const bounds = new window.google.maps.LatLngBounds();
-      posts.forEach(post => {
-        bounds.extend({
-          lat: parseFloat(post.latitude),
-          lng: parseFloat(post.longitude)
-        });
-      });
-      if (userLocation) {
-        bounds.extend(userLocation);
-      }
-      mapInstance.fitBounds(bounds);
-    }
-  }, [posts, userLocation]);
+  }, []);
 
   // Handle Google Maps loading states
   if (!GOOGLE_MAPS_API_KEY) {
@@ -212,13 +209,15 @@ const MapView = ({ nearbyOnly = true, urgencyFilter = 'all' }) => {
         <GoogleMap
           mapContainerStyle={mapContainerStyle}
           center={mapCenter}
-          zoom={12}
+          zoom={15}
           onLoad={onLoad}
           options={{
             zoomControl: true,
             streetViewControl: false,
             mapTypeControl: false,
             fullscreenControl: true,
+            minZoom: 10,
+            maxZoom: 18,
           }}
         >
             {/* User location marker */}
