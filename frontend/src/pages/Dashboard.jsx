@@ -1,13 +1,23 @@
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import CreatePost from '../components/CreatePost';
+import PostList from '../components/PostList';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [refreshPosts, setRefreshPosts] = useState(0);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
+  };
+
+  const handlePostCreated = () => {
+    setShowCreatePost(false);
+    setRefreshPosts((prev) => prev + 1); // Trigger post list refresh
   };
 
   return (
@@ -33,6 +43,7 @@ const Dashboard = () => {
 
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
+          {/* Welcome Card */}
           <div className="bg-white shadow rounded-lg p-6 mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
               🎉 Welcome to NeighbourLink Dashboard!
@@ -56,19 +67,39 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="bg-white shadow rounded-lg p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-3">🚀 You're all set!</h3>
-            <p className="text-gray-700 mb-4">
-              Your authentication system is working perfectly. Here's what's implemented:
-            </p>
-            <ul className="space-y-2 text-gray-700">
-              <li>✅ JWT-based authentication</li>
-              <li>✅ Secure token storage in localStorage</li>
-              <li>✅ Automatic token refresh</li>
-              <li>✅ Protected routes</li>
-              <li>✅ User registration & login</li>
-            </ul>
+          {/* Create Post Button */}
+          <div className="mb-6">
+            <button
+              onClick={() => setShowCreatePost(!showCreatePost)}
+              className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition-colors"
+            >
+              {showCreatePost ? '← Back to Posts' : '➕ Create New Post'}
+            </button>
           </div>
+
+          {/* Create Post Form or Post List */}
+          {showCreatePost ? (
+            <CreatePost onPostCreated={handlePostCreated} />
+          ) : (
+            <PostList refreshTrigger={refreshPosts} />
+          )}
+
+          {/* Info Card */}
+          {!showCreatePost && (
+            <div className="bg-white shadow rounded-lg p-6 mt-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">🚀 Features Available</h3>
+              <p className="text-gray-700 mb-4">
+                Your NeighbourLink platform is ready for use. Here's what you can do:
+              </p>
+              <ul className="space-y-2 text-gray-700">
+                <li>✅ Create posts with images</li>
+                <li>✅ Set urgency levels (Low, Medium, High)</li>
+                <li>✅ Add location information</li>
+                <li>✅ View community posts with filtering</li>
+                <li>✅ JWT-based authentication</li>
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </div>

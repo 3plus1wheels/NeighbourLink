@@ -142,3 +142,83 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = '__all__'
+
+# Post Creation Serializers
+class PostCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating posts with location and urgency"""
+    images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+    location = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    neighborhood_id = serializers.IntegerField(required=False, allow_null=True)
+    
+    class Meta:
+        model = Post
+        fields = ['title', 'body', 'urgency', 'location', 'neighborhood_id', 'images']
+    
+    def create(self, validated_data):
+        images_data = validated_data.pop('images', [])
+        location = validated_data.pop('location', '')
+        neighborhood_id = validated_data.pop('neighborhood_id', None)
+        
+        # Get the author from context (current user)
+        author = self.context['request'].user
+        
+        # Get neighborhood if provided
+        neighborhood = None
+        if neighborhood_id:
+            try:
+                neighborhood = Neighborhood.objects.get(id=neighborhood_id)
+            except Neighborhood.DoesNotExist:
+                pass
+        
+        # If no neighborhood provided, try to get from user's profile
+        if not neighborhood and hasattr(author, 'profile') and author.profile.neighborhood:
+            neighborhood = author.profile.neighborhood
+        
+        # Create the post
+        post = Post.objects.create(
+            author=author,
+            neighborhood=neighborhood,
+            **validated_data
+        )
+        
+        # Save location as part of the body or create a separate location field if needed
+        if location:
+            post.body = f"{post.body}\n\n📍 Location: {location}" if post.body else f"📍 Location: {location}"
+            post.save()
+        
+        # Create post images
+        for index, image_data in enumerate(images_data):
+            PostImage.objects.create(
+                post=post,
+                image=image_data,
+                order=index
+            )
+        
+        return post
+
+class PostListSerializer(serializers.ModelSerializer):
+    """Serializer for listing posts with minimal data"""
+    author_username = serializers.CharField(source='author.username', read_only=True)
+    neighborhood_name = serializers.CharField(source='neighborhood.name', read_only=True, allow_null=True)
+    images = PostImageSerializer(many=True, read_only=True)
+    like_count = serializers.SerializerMethodField()
+    dislike_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Post
+        fields = [
+            'id', 'title', 'body', 'urgency', 'author_username', 
+            'neighborhood_name', 'comment_count', 'created_at', 
+            'updated_at', 'images', 'like_count', 'dislike_count'
+        ]
+    
+    def get_like_count(self, obj):
+        return obj.like_count()
+    
+    def get_dislike_count(self, obj):
+        return obj.dislike_count()
