@@ -28,7 +28,17 @@ class Profile(models.Model):
         blank=True,
         validators=[RegexValidator(r'^\+?[0-9\-\s]+$', 'Enter a valid phone number.')]
     )
-    karmara_points = models.IntegerField(default=0)
+    karma_points = models.IntegerField(default=0)
+    
+    # Address fields
+    street_address = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    country = models.CharField(max_length=100, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+    latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

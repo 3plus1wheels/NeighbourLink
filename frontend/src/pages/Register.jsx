@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import GooglePlacesAutocomplete from '../components/GooglePlacesAutocomplete';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -11,6 +12,7 @@ const Register = () => {
     password: '',
     password2: ''
   });
+  const [addressData, setAddressData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -19,6 +21,10 @@ const Register = () => {
       ...formData,
       [e.target.name]: e.target.value,
     });
+  };
+
+  const handlePlaceSelect = (place) => {
+    setAddressData(place);
   };
 
   const handleSubmit = async (e) => {
@@ -37,7 +43,14 @@ const Register = () => {
     }
 
     setLoading(true);
-    const result = await register(formData);
+    
+    // Combine form data with address data (only if address is selected)
+    const registrationData = {
+      ...formData,
+      ...(addressData || {})  // Only spread addressData if it exists
+    };
+    
+    const result = await register(registrationData);
 
     if (result.success) {
       navigate('/dashboard');
@@ -98,6 +111,21 @@ const Register = () => {
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="your.email@example.com"
               />
+            </div>
+
+            <div>
+              <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+                Address (Optional)
+              </label>
+              <GooglePlacesAutocomplete 
+                onPlaceSelect={handlePlaceSelect}
+                placeholder="Enter your address"
+              />
+              {addressData && (
+                <p className="mt-1 text-xs text-gray-500">
+                  📍 {addressData.city}, {addressData.state}
+                </p>
+              )}
             </div>
 
             <div>

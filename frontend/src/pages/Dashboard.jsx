@@ -53,6 +53,9 @@ const Dashboard = () => {
                 <span className="font-semibold">Member since:</span>{' '}
                 {new Date(user?.date_joined).toLocaleDateString()}
               </p>
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">Address:</span> {user?.address}
+              </p>
             </div>
           </div>
 

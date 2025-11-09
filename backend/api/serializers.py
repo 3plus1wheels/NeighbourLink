@@ -11,19 +11,49 @@ User = get_user_model()
 # Authentication Serializers
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for user details"""
+    profile = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'date_joined']
+        fields = ['id', 'username', 'email', 'date_joined', 'profile']
         read_only_fields = ['id', 'date_joined']
+    
+    def get_profile(self, obj):
+        from .models import Profile
+        try:
+            profile = obj.profile
+            return {
+                'verified': profile.verified,
+                'phone_number': profile.phone_number,
+                'karma_points': profile.karma_points,
+                'street_address': profile.street_address,
+                'city': profile.city,
+                'state': profile.state,
+                'country': profile.country,
+                'postal_code': profile.postal_code,
+                'latitude': str(profile.latitude) if profile.latitude else None,
+                'longitude': str(profile.longitude) if profile.longitude else None,
+            }
+        except Profile.DoesNotExist:
+            return None
 
 class RegisterSerializer(serializers.ModelSerializer):
     """Serializer for user registration"""
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
     password2 = serializers.CharField(write_only=True, required=True)
+    
+    # Address fields (optional - not part of User model)
+    street_address = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=255)
+    city = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=100)
+    state = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=100)
+    country = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=100)
+    postal_code = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=20)
+    latitude = serializers.DecimalField(required=False, allow_null=True, max_digits=10, decimal_places=7)
+    longitude = serializers.DecimalField(required=False, allow_null=True, max_digits=10, decimal_places=7)
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'password2']
+        fields = ['username', 'email', 'password', 'password2', 'street_address', 'city', 'state', 'country', 'postal_code', 'latitude', 'longitude']
         extra_kwargs = {
             'email': {'required': True},
         }
@@ -39,13 +69,35 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        # Extract address fields
+        street_address = validated_data.pop('street_address', '')
+        city = validated_data.pop('city', '')
+        state = validated_data.pop('state', '')
+        country = validated_data.pop('country', '')
+        postal_code = validated_data.pop('postal_code', '')
+        latitude = validated_data.pop('latitude', None)
+        longitude = validated_data.pop('longitude', None)
+        
         validated_data.pop('password2')
+        
+        # Create user
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password']
-            
         )
+        
+        # Update profile with address data
+        profile = user.profile
+        profile.street_address = street_address
+        profile.city = city
+        profile.state = state
+        profile.country = country
+        profile.postal_code = postal_code
+        profile.latitude = latitude
+        profile.longitude = longitude
+        profile.save()
+        
         return user
 
 class LoginSerializer(serializers.Serializer):
@@ -88,7 +140,9 @@ class ProfileSerializer(serializers.ModelSerializer):
     neighborhood = NeighborhoodSerializer(read_only=True)
     class Meta:
         model = Profile
-        fields = '__all__'
+        fields = ['id', 'user', 'neighborhood', 'verified', 'phone_number', 'karma_points', 
+                  'street_address', 'city', 'state', 'country', 'postal_code', 
+                  'latitude', 'longitude', 'created_at']
 
 class PostImageSerializer(serializers.ModelSerializer):
     class Meta:
