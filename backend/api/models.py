@@ -26,12 +26,10 @@ class Profile(models.Model):
     phone_number = models.CharField(
         max_length=20,
         blank=True,
-        validators=[RegexValidator(r'^\+?[0-9\-\s]+$', 'Enter a valid phone number.')]
+        validators=[RegexValidator(r'^\+?[0-9\-\s]+$', 'Enter a valid phone number.')],
+        unique=True,
     )
     karma_points = models.IntegerField(default=0)
-    
-    # Profile photo and bio
-    bio = models.TextField(max_length=500, blank=True)
     
     # Address fields
     street_address = models.CharField(max_length=255, blank=True)

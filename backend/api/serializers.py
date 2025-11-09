@@ -358,7 +358,7 @@ class ProfileDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = [
-            'id', 'username', 'email', 'bio', 'phone_number',
+            'id', 'username', 'email', 'phone_number',
             'verified', 'karma_points', 'neighborhood_name',
             'street_address', 'city', 'state', 'country', 'postal_code',
             'latitude', 'longitude',
@@ -378,7 +378,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Profile
-        fields = ['bio', 'phone_number', 'email', 'street_address', 'city', 'state', 'country', 'postal_code', 'latitude', 'longitude']
+        fields = ['phone_number', 'email', 'street_address', 'city', 'state', 'country', 'postal_code', 'latitude', 'longitude']
     
     def validate(self, attrs):
         """Round coordinates to 7 decimal places if provided (Google Maps can return 15+ decimals)"""

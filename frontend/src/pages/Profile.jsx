@@ -12,7 +12,7 @@ const Profile = () => {
   const [success, setSuccess] = useState('');
 
   const [profile, setProfile] = useState(null);
-  const [profileForm, setProfileForm] = useState({ bio: '', phone_number: '', email: '' });
+  const [profileForm, setProfileForm] = useState({ phone_number: '', email: '' });
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
 
@@ -42,7 +42,6 @@ const Profile = () => {
 
       setProfile(profileRes.data);
       setProfileForm({
-        bio: profileRes.data.bio || '',
         phone_number: profileRes.data.phone_number || '',
         email: profileRes.data.email || '',
       });
@@ -68,7 +67,6 @@ const Profile = () => {
     setLoading(true); setError(''); setSuccess('');
     try {
       const fd = new FormData();
-      fd.append('bio', profileForm.bio);
       fd.append('phone_number', profileForm.phone_number);
       fd.append('email', profileForm.email);
       if (profilePhoto) fd.append('profile_photo', profilePhoto);
@@ -257,12 +255,6 @@ const Profile = () => {
               <div>
                 <label className="block text-sm font-semibold mb-2">Phone number</label>
                 <input className="input" type="tel" name="phone_number" value={profileForm.phone_number} onChange={handleProfileInputChange} placeholder="+1234567890" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold mb-2">Bio</label>
-                <textarea className="textarea" rows={4} name="bio" value={profileForm.bio} onChange={handleProfileInputChange} maxLength={500} placeholder="Tell your neighbors about yourself…" />
-                <p className="small mt-1">{profileForm.bio.length}/500 characters</p>
               </div>
 
               <button type="submit" disabled={loading} className="btn btn-primary w-full sm:w-auto">
