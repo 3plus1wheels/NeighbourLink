@@ -217,10 +217,7 @@ LOGGING = {
     },
 }
 
-# Postal Code API Configuration (Optional)
-# Sign up at https://zipcodebase.com for a free API key
-# Without an API key, the system will use database-based distance calculation as fallback
-ZIPCODEBASE_API_KEY = '830c7d50-bd2b-11f0-b7b4-4b507c53fbdd'  # Set to your API key or use environment variable
+
 
 # Twilio SMS Configuration
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', '')

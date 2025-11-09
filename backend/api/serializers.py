@@ -48,8 +48,9 @@ class RegisterSerializer(serializers.ModelSerializer):
     state = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=100)
     country = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=100)
     postal_code = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=20)
-    latitude = serializers.DecimalField(required=False, allow_null=True, max_digits=10, decimal_places=7)
-    longitude = serializers.DecimalField(required=False, allow_null=True, max_digits=10, decimal_places=7)
+    # Use FloatField to accept any precision, then round in validation
+    latitude = serializers.FloatField(required=False, allow_null=True)
+    longitude = serializers.FloatField(required=False, allow_null=True)
 
     class Meta:
         model = User
@@ -65,6 +66,15 @@ class RegisterSerializer(serializers.ModelSerializer):
         # Check if email already exists
         if User.objects.filter(email=attrs['email']).exists():
             raise serializers.ValidationError({"email": "A user with this email already exists."})
+        
+        # Round coordinates if provided (Google Maps can return 15+ decimal places)
+        if attrs.get('latitude') is not None:
+            from decimal import Decimal, ROUND_HALF_UP
+            attrs['latitude'] = Decimal(str(attrs['latitude'])).quantize(Decimal('0.0000001'), rounding=ROUND_HALF_UP)
+        
+        if attrs.get('longitude') is not None:
+            from decimal import Decimal, ROUND_HALF_UP
+            attrs['longitude'] = Decimal(str(attrs['longitude'])).quantize(Decimal('0.0000001'), rounding=ROUND_HALF_UP)
         
         return attrs
 
@@ -211,12 +221,25 @@ class PostCreateSerializer(serializers.ModelSerializer):
     location = serializers.CharField(max_length=500, required=False, allow_blank=True)
     neighborhood_id = serializers.IntegerField(required=False, allow_null=True)
     postal_code = serializers.CharField(max_length=20, required=False, allow_blank=True)
-    latitude = serializers.DecimalField(max_digits=10, decimal_places=7, required=False, allow_null=True)
-    longitude = serializers.DecimalField(max_digits=10, decimal_places=7, required=False, allow_null=True)
-    
+    # Use FloatField to accept any precision, then round in validation
+    latitude = serializers.FloatField(required=False, allow_null=True)
+    longitude = serializers.FloatField(required=False, allow_null=True)
+
     class Meta:
         model = Post
         fields = ['title', 'body', 'urgency', 'location', 'neighborhood_id', 'images', 'postal_code', 'latitude', 'longitude']
+    
+    def validate(self, attrs):
+        """Round coordinates to 7 decimal places if provided (Google Maps can return 15+ decimals)"""
+        from decimal import Decimal, ROUND_HALF_UP
+        
+        if attrs.get('latitude') is not None:
+            attrs['latitude'] = Decimal(str(attrs['latitude'])).quantize(Decimal('0.0000001'), rounding=ROUND_HALF_UP)
+        
+        if attrs.get('longitude') is not None:
+            attrs['longitude'] = Decimal(str(attrs['longitude'])).quantize(Decimal('0.0000001'), rounding=ROUND_HALF_UP)
+        
+        return attrs
     
     def create(self, validated_data):
         images_data = validated_data.pop('images', [])
@@ -323,6 +346,18 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = ['bio', 'phone_number', 'email', 'street_address', 'city', 'state', 'country', 'postal_code', 'latitude', 'longitude']
+    
+    def validate(self, attrs):
+        """Round coordinates to 7 decimal places if provided (Google Maps can return 15+ decimals)"""
+        from decimal import Decimal, ROUND_HALF_UP
+        
+        if attrs.get('latitude') is not None:
+            attrs['latitude'] = Decimal(str(attrs['latitude'])).quantize(Decimal('0.0000001'), rounding=ROUND_HALF_UP)
+        
+        if attrs.get('longitude') is not None:
+            attrs['longitude'] = Decimal(str(attrs['longitude'])).quantize(Decimal('0.0000001'), rounding=ROUND_HALF_UP)
+        
+        return attrs
     
     def update(self, instance, validated_data):
         # Handle email update separately (on User model)
