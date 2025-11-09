@@ -242,10 +242,6 @@ const Profile = () => {
           {/* Personal */}
           {activeTab === 'personal' && (
             <form onSubmit={handleProfileUpdate} className="grid gap-6">
-              <div>
-                <label className="block text-sm font-semibold mb-2">Profile photo</label>
-                <input type="file" accept="image/*" onChange={handlePhotoChange} />
-              </div>
 
               <div>
                 <label className="block text-sm font-semibold mb-2">Email</label>
