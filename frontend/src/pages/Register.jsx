@@ -346,7 +346,7 @@ const Register = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2 uppercase tracking-wide text-red-600">
+                <label className="block text-sm font-semibold mb-2 uppercase tracking-wide text-black">
                   Upload Verification Document *
                 </label>
                 <input
@@ -354,7 +354,11 @@ const Register = () => {
                   accept="image/*,.pdf"
                   onChange={handleDocumentChange}
                   required
-                  className="w-full px-4 py-3 border-2 border-red-500 focus:outline-none focus:border-red-700 file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-black file:text-white file:font-bold file:uppercase file:cursor-pointer hover:file:bg-gray-800"
+                  className={`w-full px-4 py-3 border-2 focus:outline-none file:mr-4 file:py-2 file:px-4 file:border-0 file:bg-black file:text-white file:font-bold file:uppercase file:cursor-pointer hover:file:bg-gray-800 transition-colors ${
+                    document 
+                      ? 'border-green-500 focus:border-green-700' 
+                      : 'border-red-500 focus:border-red-700'
+                  }`}
                 />
                 <p className="text-xs text-gray-600 mt-2">
                   <strong>Required:</strong> JPG, PNG, or PDF. Document must clearly display your name and the address you selected above.
