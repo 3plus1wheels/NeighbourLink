@@ -6,13 +6,8 @@ const ProtectedRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh' 
-      }}>
-        <p>Loading...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading…</p>
       </div>
     );
   }

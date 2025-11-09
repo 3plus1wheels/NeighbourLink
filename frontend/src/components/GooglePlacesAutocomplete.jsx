@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 const libraries = ['places'];
 
-const GooglePlacesAutocomplete = ({ onPlaceSelect, placeholder = "Enter your address" }) => {
+const GooglePlacesAutocomplete = ({ onPlaceSelect, placeholder = 'Enter your address' }) => {
   const [autocomplete, setAutocomplete] = useState(null);
   const [inputValue, setInputValue] = useState('');
 
@@ -12,80 +12,52 @@ const GooglePlacesAutocomplete = ({ onPlaceSelect, placeholder = "Enter your add
     libraries,
   });
 
-  const onLoad = (autocompleteInstance) => {
-    setAutocomplete(autocompleteInstance);
-  };
+  const onLoad = (inst) => setAutocomplete(inst);
 
   const onPlaceChanged = () => {
-    if (autocomplete !== null) {
-      const place = autocomplete.getPlace();
-      
-      if (place.geometry) {
-        const addressComponents = place.address_components || [];
-        const formattedAddress = place.formatted_address || '';
-        
-        // Extract address details
-        const getComponent = (type) => {
-          const component = addressComponents.find(c => c.types.includes(type));
-          return component ? component.long_name : '';
-        };
+    if (!autocomplete) return;
+    const place = autocomplete.getPlace();
+    if (!place?.geometry) return;
 
-        const streetNumber = getComponent('street_number');
-        const route = getComponent('route');
-        const streetAddress = streetNumber && route ? `${streetNumber} ${route}` : route || streetNumber || '';
-        
-        const addressData = {
-          street_address: streetAddress,
-          city: getComponent('locality') || getComponent('postal_town'),
-          state: getComponent('administrative_area_level_1'),
-          country: getComponent('country'),
-          postal_code: getComponent('postal_code'),
-          latitude: place.geometry.location.lat(),
-          longitude: place.geometry.location.lng(),
-        };
+    const ac = place.address_components || [];
+    const get = (type) => ac.find((c) => c.types.includes(type))?.long_name || '';
 
-        setInputValue(formattedAddress);
-        if (onPlaceSelect) {
-          onPlaceSelect(addressData);
-        }
-      }
-    }
+    const streetNumber = get('street_number');
+    const route = get('route');
+    const streetAddress = streetNumber && route ? `${streetNumber} ${route}` : route || streetNumber || '';
+
+    const addressData = {
+      street_address: streetAddress,
+      city: get('locality') || get('postal_town'),
+      state: get('administrative_area_level_1'),
+      country: get('country'),
+      postal_code: get('postal_code'),
+      latitude: place.geometry.location.lat(),
+      longitude: place.geometry.location.lng(),
+    };
+
+    setInputValue(place.formatted_address || '');
+    onPlaceSelect && onPlaceSelect(addressData);
   };
 
-  if (loadError) {
-    return (
-      <div className="text-red-600 text-sm">
-        Error loading Google Maps. Please check your API key.
-      </div>
-    );
-  }
+  if (loadError) return <div className="small text-red-700">Error loading Google Maps.</div>;
 
   if (!isLoaded) {
-    return (
-      <input
-        type="text"
-        disabled
-        placeholder="Loading Google Maps..."
-        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100"
-      />
-    );
+    return <input className="input" disabled placeholder="Loading Google Maps…" />;
   }
 
   return (
     <Autocomplete
       onLoad={onLoad}
       onPlaceChanged={onPlaceChanged}
-      options={{
-        types: ['address'],
-        componentRestrictions: { country: ['us', 'ca'] }, // Restrict to US and Canada, adjust as needed
-      }}
+      options={{ types: ['address'], componentRestrictions: { country: ['us', 'ca'] } }}
     >
       <input
+        className="input"
         type="text"
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         placeholder={placeholder}
-        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
       />
     </Autocomplete>
   );

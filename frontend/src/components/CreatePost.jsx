@@ -18,39 +18,24 @@ const CreatePost = ({ onPostCreated }) => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleLocationSelect = (addressData) => {
-    setLocationData(addressData);
-    // Update location field with formatted address
-    setFormData((prev) => ({
-      ...prev,
-      location: addressData.street_address || '',
-    }));
+  const handleLocationSelect = (addr) => {
+    setLocationData(addr);
+    setFormData((prev) => ({ ...prev, location: addr.street_address || '' }));
   };
 
   const handleImageChange = (e) => {
-    const files = Array.from(e.target.files);
+    const files = Array.from(e.target.files || []);
     setImages(files);
-
-    // Create preview URLs
-    const previews = files.map((file) => URL.createObjectURL(file));
-    setImagePreviews(previews);
+    setImagePreviews(files.map((f) => URL.createObjectURL(f)));
   };
 
-  const removeImage = (index) => {
-    const newImages = images.filter((_, i) => i !== index);
-    const newPreviews = imagePreviews.filter((_, i) => i !== index);
-    
-    // Revoke the URL to avoid memory leaks
-    URL.revokeObjectURL(imagePreviews[index]);
-    
-    setImages(newImages);
-    setImagePreviews(newPreviews);
+  const removeImage = (i) => {
+    URL.revokeObjectURL(imagePreviews[i]);
+    setImages(images.filter((_, idx) => idx !== i));
+    setImagePreviews(imagePreviews.filter((_, idx) => idx !== i));
   };
 
   const handleSubmit = async (e) => {
@@ -60,57 +45,31 @@ const CreatePost = ({ onPostCreated }) => {
     setSuccess('');
 
     try {
-      // Create FormData for multipart/form-data request
       const postData = new FormData();
       postData.append('title', formData.title);
       postData.append('body', formData.body);
       postData.append('urgency', formData.urgency);
       postData.append('location', formData.location);
-      
-      // Append location coordinates if available
+
       if (locationData) {
-        if (locationData.latitude) {
-          postData.append('latitude', locationData.latitude);
-        }
-        if (locationData.longitude) {
-          postData.append('longitude', locationData.longitude);
-        }
-        if (locationData.postal_code) {
-          postData.append('postal_code', locationData.postal_code);
-        }
+        if (locationData.latitude) postData.append('latitude', locationData.latitude);
+        if (locationData.longitude) postData.append('longitude', locationData.longitude);
+        if (locationData.postal_code) postData.append('postal_code', locationData.postal_code);
       }
 
-      // Append images
-      images.forEach((image) => {
-        postData.append('images', image);
-      });
+      images.forEach((img) => postData.append('images', img));
 
-      const response = await api.post('/posts/create/', postData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      const res = await api.post('/posts/create/', postData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       setSuccess('Post created successfully!');
-      
-      // Reset form
-      setFormData({
-        title: '',
-        body: '',
-        urgency: 'low',
-        location: '',
-      });
+      setFormData({ title: '', body: '', urgency: 'low', location: '' });
       setLocationData(null);
       setImages([]);
       setImagePreviews([]);
-
-      // Call callback if provided
-      if (onPostCreated) {
-        onPostCreated(response.data);
-      }
-
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(''), 3000);
+      onPostCreated && onPostCreated(res.data);
+      setTimeout(() => setSuccess(''), 2500);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create post. Please try again.');
     } finally {
@@ -118,73 +77,46 @@ const CreatePost = ({ onPostCreated }) => {
     }
   };
 
-  const urgencyColors = {
-    low: 'bg-green-100 text-green-800 border-green-300',
-    med: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-    high: 'bg-red-100 text-red-800 border-red-300',
-  };
-
   return (
-    <div className="bg-white border-2 border-black p-6">
-      <h2 className="text-2xl font-bold text-black mb-6 uppercase tracking-wide">Create Post</h2>
+    <section className="card">
+      <div className="section-head"><h2>Create Post</h2></div>
 
-      {error && (
-        <div className="mb-4 p-3 bg-black text-white border-2 border-black">
-          {error}
-        </div>
-      )}
+      {error && <div className="card mb-4"><p className="text-red-700">{error}</p></div>}
+      {success && <div className="card mb-4"><p className="text-green-700">{success}</p></div>}
 
-      {success && (
-        <div className="mb-4 p-3 bg-white text-black border-2 border-black">
-          {success}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Title */}
+      <form onSubmit={handleSubmit} className="grid gap-6">
         <div>
-          <label htmlFor="title" className="block text-sm font-bold text-black mb-2 uppercase tracking-wide">
-            Title *
-          </label>
+          <label className="block text-sm font-semibold mb-2">Title *</label>
           <input
+            className="input"
             type="text"
-            id="title"
             name="title"
             value={formData.title}
             onChange={handleInputChange}
             required
-            className="w-full px-4 py-3 border-2 border-black focus:outline-none focus:border-black"
-            placeholder="What do you need help with?"
+            placeholder="Write a short, clear title"
           />
         </div>
 
-        {/* Body */}
         <div>
-          <label htmlFor="body" className="block text-sm font-bold text-black mb-2 uppercase tracking-wide">
-            Description
-          </label>
+          <label className="block text-sm font-semibold mb-2">Description</label>
           <textarea
-            id="body"
+            className="textarea"
             name="body"
+            rows={4}
             value={formData.body}
             onChange={handleInputChange}
-            rows="4"
-            className="w-full px-4 py-3 border-2 border-black focus:outline-none focus:border-black"
-            placeholder="Provide more details about your request..."
+            placeholder="Add helpful details…"
           />
         </div>
 
-        {/* Urgency */}
         <div>
-          <label htmlFor="urgency" className="block text-sm font-bold text-black mb-2 uppercase tracking-wide">
-            Urgency Level *
-          </label>
+          <label className="block text-sm font-semibold mb-2">Urgency level *</label>
           <select
-            id="urgency"
+            className="select"
             name="urgency"
             value={formData.urgency}
             onChange={handleInputChange}
-            className="w-full px-4 py-3 border-2 border-black focus:outline-none focus:border-black bg-white font-medium"
           >
             <option value="low">Low — Can wait</option>
             <option value="med">Medium — Soon</option>
@@ -192,58 +124,40 @@ const CreatePost = ({ onPostCreated }) => {
           </select>
         </div>
 
-        {/* Location */}
         <div>
-          <label htmlFor="location" className="block text-sm font-bold text-black mb-2 uppercase tracking-wide">
-            Location
-          </label>
-          <GooglePlacesAutocomplete
-            onPlaceSelect={handleLocationSelect}
-            placeholder="Search for an address..."
-          />
+          <label className="block text-sm font-semibold mb-2">Location</label>
+          <GooglePlacesAutocomplete onPlaceSelect={handleLocationSelect} placeholder="Search for an address…" />
           {locationData && (
-            <div className="mt-2 p-3 bg-gray-50 border-2 border-gray-300 text-sm">
-              <p className="font-semibold">Selected Location:</p>
-              <p>{locationData.street_address}</p>
-              <p>{locationData.city}, {locationData.state} {locationData.postal_code}</p>
-              <p className="text-xs text-gray-600 mt-1">
+            <div className="mt-3 card">
+              <p className="font-semibold">Selected Location</p>
+              <p className="text-sm text-gray-700">{locationData.street_address}</p>
+              <p className="text-sm text-gray-700">
+                {locationData.city}, {locationData.state} {locationData.postal_code}
+              </p>
+              <p className="small mt-1">
                 Coordinates: {locationData.latitude?.toFixed(6)}, {locationData.longitude?.toFixed(6)}
               </p>
             </div>
           )}
         </div>
 
-        {/* Images */}
         <div>
-          <label htmlFor="images" className="block text-sm font-bold text-black mb-2 uppercase tracking-wide">
-            Images (optional)
-          </label>
-          <input
-            type="file"
-            id="images"
-            name="images"
-            accept="image/*"
-            multiple
-            onChange={handleImageChange}
-            className="w-full px-4 py-3 border-2 border-black focus:outline-none focus:border-black"
-          />
-          <p className="text-xs text-gray-600 mt-2">You can upload multiple images</p>
+          <label className="block text-sm font-semibold mb-2">Images (optional)</label>
+          <div className="upload">Drag & drop or click to select</div>
+          <input type="file" accept="image/*" multiple onChange={handleImageChange} className="mt-2" />
+          <p className="small mt-1">You can upload multiple images.</p>
         </div>
 
-        {/* Image Previews */}
         {imagePreviews.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {imagePreviews.map((preview, index) => (
-              <div key={index} className="relative">
-                <img
-                  src={preview}
-                  alt={`Preview ${index + 1}`}
-                  className="w-full h-32 object-cover border-2 border-black"
-                />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {imagePreviews.map((src, i) => (
+              <div key={i} className="relative">
+                <img src={src} alt={`Preview ${i + 1}`} className="thumb w-full h-32 object-cover" />
                 <button
                   type="button"
-                  onClick={() => removeImage(index)}
-                  className="absolute top-2 right-2 bg-black text-white w-8 h-8 flex items-center justify-center hover:bg-gray-800 font-bold text-xl border-2 border-white"
+                  onClick={() => removeImage(i)}
+                  className="absolute top-2 right-2 btn btn-primary !px-2 !py-1"
+                  aria-label="Remove image"
                 >
                   ×
                 </button>
@@ -252,22 +166,13 @@ const CreatePost = ({ onPostCreated }) => {
           </div>
         )}
 
-        {/* Submit Button */}
         <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full px-6 py-4 text-white font-bold text-lg uppercase tracking-wide border-2 border-black ${
-              loading
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-black hover:bg-gray-800'
-            }`}
-          >
-            {loading ? 'Creating...' : 'Create Post'}
+          <button type="submit" disabled={loading} className="btn btn-primary w-full">
+            {loading ? 'Creating…' : 'Create Post'}
           </button>
         </div>
       </form>
-    </div>
+    </section>
   );
 };
 
