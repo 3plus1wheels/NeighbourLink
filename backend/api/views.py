@@ -28,10 +28,103 @@ from .models import Post, Profile, NotificationPreference, Notification
 import logging
 import traceback
 from math import radians, sin, cos, sqrt, atan2
+from django.conf import settings
+from django.core.mail import send_mail
 
 
 # Initialize logger for tracking API operations and debugging
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+def send_sms(to_phone_number, message):
+    """
+    Send SMS using Twilio
+    
+    Args:
+        to_phone_number (str): Recipient's phone number in E.164 format (e.g., '+1234567890')
+        message (str): SMS message content
+    
+    Returns:
+        bool: True if SMS was sent successfully, False otherwise
+    """
+    try:
+        from twilio.rest import Client
+        
+        # Check if Twilio is configured
+        if not all([settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN, settings.TWILIO_PHONE_NUMBER]):
+            logger.warning("Twilio credentials not configured. SMS not sent.")
+            return False
+        
+        # Ensure phone number is in E.164 format
+        if not to_phone_number.startswith('+'):
+            logger.error(f"Phone number {to_phone_number} must be in E.164 format (start with +)")
+            return False
+        
+        # Initialize Twilio client
+        client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+        
+        # Send SMS
+        sms_message = client.messages.create(
+            body=message,
+            from_=settings.TWILIO_PHONE_NUMBER,
+            to=to_phone_number
+        )
+        
+        logger.info(f"✅ SMS sent successfully to {to_phone_number}. SID: {sms_message.sid}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error sending SMS to {to_phone_number}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return False
+
+
+def format_phone_number(phone_number, country_code='+1'):
+    """
+    Format phone number to E.164 format
+    
+    Args:
+        phone_number (str): Phone number in any format
+        country_code (str): Default country code (default: +1 for US/Canada)
+    
+    Returns:
+        str: Phone number in E.164 format or None if invalid
+    """
+    if not phone_number:
+        return None
+    
+    # Convert to string if not already
+    phone_number = str(phone_number)
+    
+    # Remove all non-digit characters
+    digits = ''.join(filter(str.isdigit, phone_number))
+    
+    # If already has +, check if valid
+    if phone_number.startswith('+'):
+        # Make sure it has digits after +
+        if len(digits) >= 10:
+            return phone_number.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+        return None
+    
+    # If 10 digits, assume US/Canada
+    if len(digits) == 10:
+        return f"{country_code}{digits}"
+    
+    # If 11 digits and starts with 1, assume US/Canada
+    if len(digits) == 11 and digits.startswith('1'):
+        return f"+{digits}"
+    
+    # Return with country code if we have reasonable length
+    if len(digits) >= 10:
+        return f"{country_code}{digits}"
+    
+    logger.warning(f"Invalid phone number format: {phone_number}")
+    return None
 
 
 # ============================================================================
@@ -311,66 +404,120 @@ def create_post(request):
 
 def create_proximity_notifications(post):
     """
-    Create notifications for users within a certain radius of the post location.
-    
-    This function identifies users whose profiles are located within a defined
-    radius (e.g., 5 km) of the post's latitude and longitude. It then creates
-    notification entries for those users based on their notification preferences.
+    Send email and SMS notifications to users within 750 meters of the post location.
+    Based on their notification preferences (email_enabled, sms_enabled, min_urgency).
     
     Args:
         post (Post): The post object containing location data.
     """
-    from django.core.mail import send_mail
-    from django.conf import settings
     try:
+        # Get all profiles with location data (excluding the post author)
         profiles = Profile.objects.exclude(user=post.author).filter(
             latitude__isnull=False,
-            longitude__isnull=False,
-            user__email__isnull=False
+            longitude__isnull=False
         )
+        
+        logger.info(f"Processing proximity notifications for post {post.id}")
+        logger.info(f"Found {profiles.count()} profiles with location data")
+        
         for profile in profiles:
+            # Calculate distance in kilometers
             distance = calculate_distance(
                 post.latitude, post.longitude,
                 profile.latitude, profile.longitude
             )
-            max_distance_km = 0.75  # 750 meters
+            
+            logger.info(f"Distance to user {profile.user.username}: {distance:.3f}km ({distance*1000:.0f}m)")
+            
+            # Check if within 750 meters (0.75 km)
+            max_distance_km = 0.75
             if distance <= max_distance_km:
+                # Get user's notification preferences
                 try:
                     notif_pref = NotificationPreference.objects.get(user=profile.user)
                 except NotificationPreference.DoesNotExist:
+                    # Create default preferences if they don't exist
                     notif_pref = NotificationPreference.objects.create(
                         user=profile.user,
                         min_urgency='low',
                         email_enabled=True,
                         sms_enabled=False
                     )
+                    logger.info(f"Created default notification preferences for {profile.user.username}")
+                
+                # Check urgency preference
                 urgency_levels = {'low': 1, 'med': 2, 'medium': 2, 'high': 3}
                 post_urgency_level = urgency_levels.get(post.urgency, 1)
                 min_urgency_level = urgency_levels.get(notif_pref.min_urgency, 1)
-                if post_urgency_level >= min_urgency_level and notif_pref.email_enabled:
-                    subject = f'NeighbourLink: New {post.get_urgency_display()} post near you'
+                
+                if post_urgency_level >= min_urgency_level:
+                    # Prepare notification content
+                    urgency_label = post.get_urgency_display()
                     location_info = f'{post.postal_code}' if post.postal_code else f'({post.latitude}, {post.longitude})'
-                    message = (
+                    
+                    # Email subject and message
+                    email_subject = f'NeighbourLink: New {urgency_label} post near you'
+                    email_message = (
                         f'Hi {profile.user.username},\n\n'
-                        f'A new post was created near your location ({distance*1000:.0f} meters away):\n\n'
+                        f'A new {urgency_label.lower()} urgency post has been created near your location ({distance*1000:.0f} meters away)!\n\n'
                         f'Title: {post.title}\n'
                         f'Author: {post.author.username}\n'
-                        f'Urgency: {post.get_urgency_display()}\n'
-                        f'Description: {post.body}\n'
+                        f'Urgency: {urgency_label}\n'
+                        f'Description: {post.body[:200]}{"..." if len(post.body) > 200 else ""}\n'
                         f'Location: {location_info}\n\n'
-                        f'Log in to NeighbourLink to view and respond.\n\n'
-                        f'Thank you!\nNeighbourLink Team'
+                        f'Log in to NeighbourLink to view the full post and stay connected with your community.\n\n'
+                        f'Best regards,\n'
+                        f'NeighbourLink Team'
                     )
-                    send_mail(
-                        subject,
-                        message,
-                        settings.DEFAULT_FROM_EMAIL,
-                        [profile.user.email],
-                        fail_silently=False,
-                    )
-                    logger.info(f"Email sent to {profile.user.email} for post {post.id} ({distance:.2f}km)")
+                    
+                    # Send Email Notification
+                    if notif_pref.email_enabled and profile.user.email:
+                        try:
+                            send_mail(
+                                email_subject,
+                                email_message,
+                                settings.DEFAULT_FROM_EMAIL,
+                                [profile.user.email],
+                                fail_silently=False,
+                            )
+                            logger.info(f"✅ Email sent to {profile.user.email} for post {post.id} ({distance:.3f}km)")
+                        except Exception as e:
+                            logger.error(f"❌ Failed to send email to {profile.user.email}: {e}")
+                    
+                    # Send SMS Notification
+                    if notif_pref.sms_enabled and profile.phone_number:
+                        # Format phone number to E.164
+                        formatted_phone = format_phone_number(profile.phone_number)
+                        
+                        if formatted_phone:
+                            # Create shorter SMS message (SMS has character limits - typically 160 chars)
+                            sms_message = (
+                                f'NeighbourLink Alert: New {urgency_label} post "{post.title}" '
+                                f'by {post.author.username} ({distance*1000:.0f}m away). '
+                                f'Login to view details.'
+                            )
+                            
+                            # Truncate if too long
+                            if len(sms_message) > 160:
+                                sms_message = sms_message[:157] + '...'
+                            
+                            sms_sent = send_sms(formatted_phone, sms_message)
+                            
+                            if sms_sent:
+                                logger.info(f"✅ SMS sent to {formatted_phone} for post {post.id} ({distance:.3f}km)")
+                            else:
+                                logger.error(f"❌ Failed to send SMS to {formatted_phone}")
+                        else:
+                            logger.warning(f"⚠️  Invalid phone number format for user {profile.user.username}: {profile.phone_number}")
+                else:
+                    logger.info(f"⏭️  Post urgency ({post.urgency}) below user {profile.user.username} minimum ({notif_pref.min_urgency})")
+            else:
+                logger.info(f"⏭️  User {profile.user.username} is too far ({distance:.3f}km > {max_distance_km}km)")
+        
     except Exception as e:
-        logger.error(f"Error sending proximity emails: {str(e)}")
+        logger.error(f"❌ Error creating proximity notifications: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
 
             
 

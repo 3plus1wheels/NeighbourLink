@@ -1,11 +1,95 @@
 """
-Utility functions for the API - Coordinate based proximity
+Utility functions for the API - Coordinate based proximity and SMS
 """
 from decimal import Decimal
 import logging
 from math import radians, cos, sin, asin, sqrt
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+
+def send_sms(to_phone_number, message):
+    """
+    Send SMS using Twilio
+    
+    Args:
+        to_phone_number (str): Recipient's phone number in E.164 format (e.g., '+1234567890')
+        message (str): SMS message content
+    
+    Returns:
+        bool: True if SMS was sent successfully, False otherwise
+    """
+    try:
+        from twilio.rest import Client
+        from twilio.base.exceptions import TwilioRestException
+        
+        # Check if Twilio is configured
+        if not all([settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN, settings.TWILIO_PHONE_NUMBER]):
+            logger.warning("Twilio credentials not configured. SMS not sent.")
+            return False
+        
+        # Ensure phone number is in E.164 format
+        if not to_phone_number.startswith('+'):
+            logger.error(f"Phone number {to_phone_number} must be in E.164 format (start with +)")
+            return False
+        
+        # Initialize Twilio client
+        client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+        
+        # Send SMS
+        sms_message = client.messages.create(
+            body=message,
+            from_=settings.TWILIO_PHONE_NUMBER,
+            to=to_phone_number
+        )
+        
+        logger.info(f"SMS sent successfully to {to_phone_number}. SID: {sms_message.sid}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error sending SMS to {to_phone_number}: {e}")
+        return False
+
+
+def format_phone_number(phone_number, country_code='+1'):
+    """
+    Format phone number to E.164 format
+    
+    Args:
+        phone_number (str): Phone number in any format
+        country_code (str): Default country code (default: +1 for US/Canada)
+    
+    Returns:
+        str: Phone number in E.164 format or None if invalid
+    """
+    if not phone_number:
+        return None
+    
+    # Remove all non-digit characters
+    digits = ''.join(filter(str.isdigit, phone_number))
+    
+    # If already has +, check if valid
+    if phone_number.startswith('+'):
+        # Make sure it has digits after +
+        if len(digits) >= 10:
+            return phone_number.replace(' ', '').replace('-', '').replace('(', '').replace(')', '')
+        return None
+    
+    # If 10 digits, assume US/Canada
+    if len(digits) == 10:
+        return f"{country_code}{digits}"
+    
+    # If 11 digits and starts with 1, assume US/Canada
+    if len(digits) == 11 and digits.startswith('1'):
+        return f"+{digits}"
+    
+    # Return with country code if we have reasonable length
+    if len(digits) >= 10:
+        return f"{country_code}{digits}"
+    
+    logger.warning(f"Invalid phone number format: {phone_number}")
+    return None
 
 
 def haversine_distance(lat1, lon1, lat2, lon2):
