@@ -293,27 +293,60 @@ def create_post(request):
 @permission_classes([IsAuthenticated])
 def list_posts(request):
     """
-    Retrieve a list of posts with optional filtering.
+    List all posts with optional filtering by urgency, neighborhood, and proximity
     
-    This endpoint returns all posts with support for filtering by urgency level
-    and neighborhood. Posts are returned with basic information suitable for
-    list/feed views.
-    
-    Query Parameters:
-        - urgency (str, optional): Filter by urgency level ('low', 'medium', 'high', 'critical')
-        - neighborhood (int, optional): Filter by neighborhood ID
-    
-    Returns:
-        Response: JSON array of serialized posts with basic details
-        
-    Status Codes:
-        - 200: Successfully retrieved posts
-        - 401: Unauthorized (not authenticated)
-    
-    Example:
-        GET /api/posts/?urgency=high&neighborhood=5
+    Query params:
+    - urgency: Filter by urgency level
+    - neighborhood: Filter by neighborhood ID
+    - nearby: If 'true', filter by coordinates within 3km radius
+    - radius: Custom radius in km (default 3)
     """
-    # Start with all posts
+    # Check if user wants nearby posts based on coordinates
+    nearby = request.query_params.get('nearby', '').lower() == 'true'
+    
+    if nearby:
+        radius_km = float(request.query_params.get('radius', 3))
+        
+        # Get user coordinates from utils
+        from .utils import get_user_coordinates, get_posts_by_coordinate_radius
+        user_latitude, user_longitude = get_user_coordinates(request.user)
+        
+        if not user_latitude or not user_longitude:
+            return Response({
+                'error': 'Coordinates not set in your profile. Please update your profile with your address to see nearby posts.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        logger.info(f"🌐 User {request.user.username} requesting posts within {radius_km}km of ({user_latitude}, {user_longitude})")
+        
+        # Get posts by coordinate radius
+        posts = get_posts_by_coordinate_radius(user_latitude, user_longitude, radius_km)
+        
+        # Apply additional filters if provided
+        urgency = request.query_params.get('urgency', None)
+        if urgency:
+            posts = [post for post in posts if post.urgency == urgency]
+            logger.info(f"🔥 Filtered by urgency: {urgency}")
+        
+        neighborhood_id = request.query_params.get('neighborhood', None)
+        if neighborhood_id:
+            posts = [post for post in posts if post.neighborhood_id == int(neighborhood_id)]
+            logger.info(f"🏘️  Filtered by neighborhood: {neighborhood_id}")
+        
+        serializer = PostListSerializer(posts, many=True)
+        
+        response_data = {
+            'user_latitude': str(user_latitude),
+            'user_longitude': str(user_longitude),
+            'radius_km': radius_km,
+            'count': len(posts),
+            'posts': serializer.data
+        }
+        
+        logger.info(f"✅ Returning {len(posts)} posts within {radius_km}km")
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+    # Default: Get all posts
     posts = Post.objects.all()
     
     # Apply urgency filter if provided
