@@ -28,6 +28,14 @@ const CreatePost = ({ onPostCreated }) => {
 
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files || []);
+    
+    // Limit to 5 images
+    if (files.length > 5) {
+      setError('Maximum of 5 images allowed per post.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+    
     setImages(files);
     setImagePreviews(files.map((f) => URL.createObjectURL(f)));
   };
@@ -142,10 +150,10 @@ const CreatePost = ({ onPostCreated }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold mb-2">Images (optional)</label>
+          <label className="block text-sm font-semibold mb-2">Images (optional, max 5)</label>
           <div className="upload">Drag & drop or click to select</div>
           <input type="file" accept="image/*" multiple onChange={handleImageChange} className="mt-2" />
-          <p className="small mt-1">You can upload multiple images.</p>
+          <p className="small mt-1">You can upload up to 5 images.</p>
         </div>
 
         {imagePreviews.length > 0 && (

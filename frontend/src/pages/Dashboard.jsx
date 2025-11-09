@@ -1,9 +1,10 @@
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import CreatePost from '../components/CreatePost';
 import PostList from '../components/PostList';
 import MapView from '../components/MapView';
+import api from '../utils/api';
 
 const FeedIcon = ({ className }) => (
   <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -25,11 +26,41 @@ const Dashboard = () => {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
   const [refreshPosts, setRefreshPosts] = useState(0);
+  const [urgentPosts, setUrgentPosts] = useState([]);
+  const [stats, setStats] = useState({ userPosts: 0, nearbyPosts: 0 });
 
   const indicatorTransform = useMemo(
     () => (viewMode === 'map' ? 'translateX(100%)' : 'translateX(0%)'),
     [viewMode]
   );
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      // Fetch urgent posts
+      const urgentResponse = await api.get('/posts/?nearby=true&urgency=high');
+      const urgentData = Array.isArray(urgentResponse.data)
+        ? urgentResponse.data
+        : urgentResponse.data.posts || [];
+      setUrgentPosts(urgentData.slice(0, 3)); // Show max 3 urgent posts
+
+      // Fetch user's posts count
+      const userPostsResponse = await api.get('/profile/posts/');
+      setStats(prev => ({ ...prev, userPosts: userPostsResponse.data.length }));
+
+      // Fetch nearby posts count
+      const nearbyResponse = await api.get('/posts/?nearby=true');
+      const nearbyData = Array.isArray(nearbyResponse.data)
+        ? nearbyResponse.data
+        : nearbyResponse.data.posts || [];
+      setStats(prev => ({ ...prev, nearbyPosts: nearbyData.length }));
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -80,8 +111,11 @@ const Dashboard = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/profile')} className="btn-nav btn-secondary">
+            <button onClick={() => navigate('/profile')} className="btn-nav btn-secondary flex items-center gap-2">
               Profile
+              <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-bold">
+                {user?.profile?.karma_points || 0} Rep
+              </span>
             </button>
             <button onClick={handleLogout} className="btn-nav btn-primary">
               Logout
@@ -92,22 +126,73 @@ const Dashboard = () => {
 
       {/* Page content */}
       <main className="container-nl">
-        {/* Welcome card */}
-        <section className="card card-hover mb-6">
-          <div className="section-head"><h1>Welcome back</h1></div>
-          <div className="grid gap-2 text-[15px]">
-            <div><span className="font-semibold">Username:</span> {user?.username}</div>
-            <div><span className="font-semibold">Email:</span> {user?.email}</div>
-            {user?.first_name && (
-              <div><span className="font-semibold">Name:</span> {user.first_name} {user.last_name}</div>
-            )}
-            <div>
-              <span className="font-semibold">Member since:</span>{' '}
-              {user?.date_joined ? new Date(user.date_joined).toLocaleDateString() : '—'}
+        {/* Urgent Posts Alert & Neighborhood Summary */}
+        <div className="grid md:grid-cols-2 gap-6 mb-6">
+          {/* Urgent Posts Alert */}
+          <section className="card">
+            <div className="section-head">
+              <h2 className="flex items-center gap-2">
+                <span className="text-2xl">⚠️</span>
+                Urgent in Your Area
+              </h2>
             </div>
-            <div><span className="font-semibold">Postal Code:</span> {user?.profile?.postal_code || '—'}</div>
-          </div>
-        </section>
+            <div className="text-sm text-gray-600 mb-4">
+              {urgentPosts.length} high-priority posts within 3km
+            </div>
+            <div className="space-y-3">
+              {urgentPosts.length === 0 ? (
+                <div className="text-center text-gray-500 py-8 border border-dashed rounded-lg">
+                  No urgent posts nearby
+                </div>
+              ) : (
+                urgentPosts.map((post) => (
+                  <div key={post.id} className="p-3 border-l-4 border-red-500 bg-red-50 rounded hover:bg-red-100 transition-colors cursor-pointer" onClick={() => setViewMode('list')}>
+                    <h3 className="font-bold text-sm mb-1">{post.title}</h3>
+                    <p className="text-xs text-gray-600 line-clamp-2">{post.body}</p>
+                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                      <span>By {post.author_username}</span>
+                      <span>•</span>
+                      <span>{new Date(post.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          {/* Neighborhood Summary */}
+          <section className="card">
+            <div className="section-head">
+              <h2 className="flex items-center gap-2">
+                <span className="text-2xl">📊</span>
+                Your Neighborhood
+              </h2>
+            </div>
+            <div className="text-sm font-medium text-gray-700 mb-4">
+              📍 {user?.profile?.postal_code || 'No postal code set'}
+            </div>
+            <div className="grid gap-3 text-[15px]">
+              <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                <span className="text-gray-600">Your Posts</span>
+                <span className="font-bold text-lg">{stats.userPosts}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                <span className="text-gray-600">Rep Points</span>
+                <span className="font-bold text-lg text-indigo-600">{user?.profile?.karma_points || 0}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                <span className="text-gray-600">Member Since</span>
+                <span className="font-semibold text-sm">
+                  {user?.date_joined ? new Date(user.date_joined).toLocaleDateString() : '—'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Nearby Posts (3km)</span>
+                <span className="font-bold text-lg text-green-600">{stats.nearbyPosts}</span>
+              </div>
+            </div>
+          </section>
+        </div>
 
         {/* Create Post CTA */}
         <div className="mb-6">
@@ -129,20 +214,6 @@ const Dashboard = () => {
           <MapView nearbyOnly={true} urgencyFilter="all" />
         ) : (
           <PostList refreshTrigger={refreshPosts} />
-        )}
-
-        {/* Info card (optional) */}
-        {!showCreatePost && (
-          <section className="card mt-6">
-            <div className="section-head"><h2>Features</h2></div>
-            <ul className="grid gap-2 text-gray-800">
-              <li>• Create posts with images</li>
-              <li>• Set urgency levels (Low, Medium, High)</li>
-              <li>• Add location information</li>
-              <li>• View community posts with filtering</li>
-              <li>• JWT-based authentication</li>
-            </ul>
-          </section>
         )}
       </main>
     </div>
